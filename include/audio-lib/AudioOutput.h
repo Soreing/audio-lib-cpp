@@ -25,8 +25,7 @@ public:
 	WAVEFORMATEX desired_fmt;
 	WAVEFORMATEX supported_fmt;
 
-	char*   mixer_buffer1;	// Buffer for mixing audio sources
-	char*   mixer_buffer2;	// Buffer for mixing audio sources
+	char*   mixer_buffer;	// Buffer for mixing audio sources
 	size_t  mixer_size;		// Block size of the mixer buffer
 	char*   audio_buffer;	// Audio buffer that is played by the Speaker
 	size_t  buffer_size;	// Block size of the audio buffer
@@ -68,7 +67,7 @@ public:
 	void getAudioData(char* buffer, int blocks);
 
 	// Mix n blocks of audio data B into A
-	//void mixAudioData(char* A, char* B, int blocks);
+	void mixAudioData(char* A, char* B, int buffer_size, int sample_size);
 
 	// Loads n blocks of data from a buffer to the Audio Buffer
 	// Loading starts from the last index, and if there isn't enough space,

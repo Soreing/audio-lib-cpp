@@ -10,6 +10,9 @@
 int main()
 {
 	AudioOutput ostr;
+
+	WAVEHeader wav;
+	std::ifstream in;
 	
 	// Setting Audio Format
 	WAVEFORMATEX format;
@@ -31,17 +34,29 @@ int main()
 		std::cout << "Playing...\n";
 
 		// Open and read test .wav audio file and extract header
-		WAVEHeader wav;
-		std::ifstream in("test.wav", std::ios::binary);
+		in.open("clip1.wav", std::ios::binary);
 		in.read((char*)&wav, sizeof(WAVEHeader));
-
 		// Extract audio data from the test file
-		char* samples = new char[wav.subchunk2Size];
-		in.read(samples, wav.subchunk2Size);
+		char* clip1 = new char[wav.subchunk2Size];
+		in.read(clip1, wav.subchunk2Size);
+		in.close();
 
 		// Create an AudioSource on the speaker and add the audio data from the file
-		AudioSource* src = ostr.createSource(format, AS_FLAG_BUFFERED | AS_FLAG_LOOPED);
-		src->add(samples, wav.subchunk2Size / wav.blockAlign, format);
+		AudioSource* src1 = ostr.createSource(format, AS_FLAG_BUFFERED | AS_FLAG_LOOPED);
+		src1->add(clip1, wav.subchunk2Size / wav.blockAlign, format);
+
+
+
+		in.open("clip2.wav", std::ios::binary);
+		in.read((char*)&wav, sizeof(WAVEHeader));
+		// Extract audio data from the test file
+		char* clip2 = new char[wav.subchunk2Size];
+		in.read(clip2, wav.subchunk2Size);
+		in.close();
+
+		// Create an AudioSource on the speaker and add the audio data from the file
+		AudioSource* src2 = ostr.createSource(format, AS_FLAG_BUFFERED | AS_FLAG_LOOPED);
+		src2->add(clip2, wav.subchunk2Size / wav.blockAlign, format);
 	}
 
 	system("PAUSE");

@@ -76,7 +76,7 @@ void audioLoaderThread(void* lparam)
 
 AudioOutput::AudioOutput()
 	: 	speaker(NULL), state(Stopped),
-		audio_buffer(NULL), mixer_buffer1(NULL), mixer_buffer2(NULL),
+		audio_buffer(NULL), mixer_buffer(NULL),
 		head(NULL), tail(NULL)
 {
 }
@@ -106,12 +106,10 @@ int AudioOutput::openDevice(size_t deviceID)
 		size_t buffer_bytes = buffer_size * supported_fmt.nBlockAlign;
 		size_t mixer_bytes  = mixer_size  * supported_fmt.nBlockAlign;
 
-		audio_buffer  = new char[buffer_bytes];
-		mixer_buffer1 = new char[mixer_bytes];
-		mixer_buffer2 = new char[mixer_bytes];
-		memset(audio_buffer,  0, buffer_bytes);
-		memset(mixer_buffer1, 0, mixer_bytes);
-		memset(mixer_buffer2, 0, mixer_bytes);
+		audio_buffer = new char[buffer_bytes];
+		mixer_buffer = new char[mixer_bytes];
+		memset(audio_buffer, 0, buffer_bytes);
+		memset(mixer_buffer, 0, mixer_bytes);
 
 		memset(&buffer_headerA, 0, sizeof(WAVEHDR));
 		buffer_headerA.lpData = audio_buffer;
@@ -184,10 +182,45 @@ AudioSource* AudioOutput::createSource(WAVEFORMATEX fmt, unsigned char flags)
 // Gets n blocks of audio data mixed from all audio sources
 void AudioOutput::getAudioData(char* buffer, int blocks)
 {
+	int buffer_bytes = blocks * supported_fmt.nBlockAlign;
+	int sample_size  = supported_fmt.wBitsPerSample >> 3;
+
+
 	AudioNode* tmp = head;
 	while (tmp != NULL)
-	{	(tmp->source).take(buffer, blocks, supported_fmt);
+	{	(tmp->source).take(mixer_buffer, blocks, supported_fmt);
+		mixAudioData(buffer, mixer_buffer, buffer_bytes, sample_size);
 		tmp = tmp->next;
+	}
+}
+
+// Mix n blocks of audio data B into A
+void AudioOutput::mixAudioData(char* A, char* B, int buffer_size, int sample_size)
+{
+	long long llA;
+	long long llB;
+	long long accumulator;
+	
+	for(int i = 0; i < buffer_size; i += sample_size)
+	{
+		if(sample_size == 1)
+		{	llA = *(char*)(A+i);
+			llB = *(char*)(B+i);
+			accumulator = llA + llB - ((llA*llB) >> 8);
+			*(char*)(A+i) = (char)accumulator;
+		}
+		else if(sample_size == 2)
+		{	llA = *(short*)(A+i);
+			llB = *(short*)(B+i);
+			accumulator = llA + llB - ((llA*llB) >> 16);
+			*(short*)(A+i) = (short)accumulator;
+		}
+		else if(sample_size == 4)
+		{	llA = *(int*)(A+i);
+			llB = *(int*)(B+i);
+			accumulator = llA + llB - ((llA*llB) >> 32);
+			*(int*)(A+i) = (int)accumulator;
+		}
 	}
 }
 
@@ -220,14 +253,9 @@ void AudioOutput::freeResources()
 	speaker = 0;
 	update_thread.join();
 
-	if(mixer_buffer1 != NULL)
-	{	delete[] mixer_buffer1;
-		mixer_buffer1 = NULL;
-	}
-
-	if(mixer_buffer2 != NULL)
-	{	delete[] mixer_buffer2;
-		mixer_buffer2 = NULL;
+	if(mixer_buffer != NULL)
+	{	delete[] mixer_buffer;
+		mixer_buffer = NULL;
 	}
 
 	if(audio_buffer != NULL)
