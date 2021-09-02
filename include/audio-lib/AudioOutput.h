@@ -3,6 +3,7 @@
 
 #include <windows.h>
 #include <thread>
+#include "wave.h"
 #include "AudioSource.h"
 
 #pragma comment(lib, "Winmm.lib")
@@ -22,8 +23,8 @@ public:
 	// Desired and supported format of the speaker device
 	// If the speaker is not capable of supporting the desired format
 	// The samples will be converted to the supported format
-	WAVEFORMATEX desired_fmt;
-	WAVEFORMATEX supported_fmt;
+	WaveFmt desired_fmt;
+	WaveFmt supported_fmt;
 
 	char*   mixer_buffer;	// Buffer for mixing audio sources
 	size_t  mixer_size;		// Block size of the mixer buffer
@@ -52,6 +53,9 @@ public:
 public:
 	AudioOutput();
 
+	// Finds the closest supported wave format of the speaker device 
+	void configFormat(size_t deviceID);
+
 	// Opens an audio output device with the closest supported format
 	// Sets up the audio buffers and starts the update thread
 	// If there was already a device opened, it will close it first
@@ -60,8 +64,15 @@ public:
 	// Closes the audio output device if one was open
 	int closeDevice();
 
+	// Gets the supported wave formats of the device
+	unsigned long long getAvailFmts(size_t deviceID);
+
+	// Sets the wave format of the speaker device
+	int setFormat(WaveFmt fmt);
+	int setFormat(short channels, short bitsPerSample, long samplesPerSec);
+
 	// Creates and returns a new Audio Source ties to the Audio Output
-	AudioSource* createSource(WAVEFORMATEX fmt, unsigned char flags = 0);
+	AudioSource* createSource(WaveFmt fmt, unsigned char flags = 0);
 
 	// Gets n blocks of audio data mixed from all Audio Sources
 	void getAudioData(char* buffer, int blocks);
@@ -74,9 +85,10 @@ public:
 	// data wraps around at the beginning
 	void loadAudioBuffer(char* buffer, int blocks);
 
-
 	// The audio buffers are deallocated and the update thread is stopped
 	void freeResources();
 };
+
+int adjustFormat(const unsigned long long supported, const WaveFmt &sample, WaveFmt &adjusted);
 
 #endif

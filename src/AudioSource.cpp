@@ -1,11 +1,11 @@
 #include <audio-lib/AudioSource.h>
 
-AudioSource::AudioSource(WAVEFORMATEX fmt, unsigned char flags)
+AudioSource::AudioSource(WaveFmt fmt, unsigned char flags)
 	: audio_fmt(fmt),
 	head(NULL), tail(NULL), curr(NULL), offset(0),
-	empty_persist(flags & AS_FLAG_PERSIST),
-	data_buffered(flags & AS_FLAG_BUFFERED),
-	audio_looped(flags & AS_FLAG_LOOPED)
+	empty_persist( (flags & AS_FLAG_PERSIST ) > 0),
+	data_buffered( (flags & AS_FLAG_BUFFERED) > 0),
+	audio_looped ( (flags & AS_FLAG_LOOPED  ) > 0)
 {}
 
 AudioSource::~AudioSource()
@@ -16,13 +16,13 @@ AudioSource::~AudioSource()
 // Adds n blocks of data to the end of the Audio Source
 // One block of data depends on the channels, sampling freq. and sample size (nBlockAlign)
 // The data being added has the wave format "fmt" (converted to the fmt of the Audio Source)
-void AudioSource::add(const char* data, size_t blocks, const WAVEFORMATEX &fmt)
+void AudioSource::add(const char* data, size_t blocks, const WaveFmt &fmt)
 {
 	size_t input_size, output_size, work_size;
 	char *tmp1, *tmp2;
 
-	input_size = fmt.nBlockAlign * blocks;
-	output_size = audio_fmt.nBlockAlign * blocks;
+	input_size = fmt.blockAlign * blocks;
+	output_size = audio_fmt.blockAlign * blocks;
 	work_size = MAX(input_size, output_size);
 
 	if (head == NULL)
@@ -37,9 +37,9 @@ void AudioSource::add(const char* data, size_t blocks, const WAVEFORMATEX &fmt)
 		tail = tail->next;
 	}
 
-	if (audio_fmt.nChannels == fmt.nChannels &&
-		audio_fmt.nSamplesPerSec == fmt.nSamplesPerSec &&
-		audio_fmt.wBitsPerSample == fmt.wBitsPerSample)
+	if (audio_fmt.numChannels == fmt.numChannels &&
+		audio_fmt.sampleRate == fmt.sampleRate &&
+		audio_fmt.bitsPerSample == fmt.bitsPerSample)
 	{
 		memcpy(tail->bytes, data, output_size);
 	}
@@ -54,14 +54,14 @@ void AudioSource::add(const char* data, size_t blocks, const WAVEFORMATEX &fmt)
 // Takes n blocks of data from the Audio Source across Data Nodes
 // One block of data depends on the channels, sampling freq. and sample size
 // The requested wave format provided in "fmt" (conversion applies)
-void AudioSource::take(char* buff, size_t blocks, const WAVEFORMATEX &fmt)
+void AudioSource::take(char* buff, size_t blocks, const WaveFmt &fmt)
 {
 	size_t input_size, output_size, work_size, copy_amount;
 	char *copy_from, *copy_to;
 	char *tmp1, *tmp2;
 
-	input_size = audio_fmt.nBlockAlign * blocks;
-	output_size = fmt.nBlockAlign * blocks;
+	input_size = audio_fmt.blockAlign * blocks;
+	output_size = fmt.blockAlign * blocks;
 	work_size = MAX(input_size, output_size);
 
 	tmp1 = new char[work_size];
@@ -72,15 +72,15 @@ void AudioSource::take(char* buff, size_t blocks, const WAVEFORMATEX &fmt)
 		// Case where there is no more data
 		if (curr == NULL)
 		{
-			copy_amount = blocks * audio_fmt.nBlockAlign;
+			copy_amount = blocks * audio_fmt.blockAlign;
 			memset(copy_to, 0, copy_amount);
 			blocks = 0;
 		}
 		// Case where this is the last data block needed
 		else if (curr->length - offset > blocks)
 		{
-			copy_from = curr->bytes + offset * audio_fmt.nBlockAlign;
-			copy_amount = blocks * audio_fmt.nBlockAlign;
+			copy_from = curr->bytes + offset * audio_fmt.blockAlign;
+			copy_amount = blocks * audio_fmt.blockAlign;
 			memcpy(copy_to, copy_from, copy_amount);
 
 			offset += blocks;
@@ -89,8 +89,8 @@ void AudioSource::take(char* buff, size_t blocks, const WAVEFORMATEX &fmt)
 		// Case where the data block is fully consumed
 		else
 		{
-			copy_from = curr->bytes + offset * audio_fmt.nBlockAlign;
-			copy_amount = (curr->length - offset) * audio_fmt.nBlockAlign;
+			copy_from = curr->bytes + offset * audio_fmt.blockAlign;
+			copy_amount = (curr->length - offset) * audio_fmt.blockAlign;
 			memcpy(copy_to, copy_from, copy_amount);
 
 			blocks -= (curr->length - offset);
@@ -127,9 +127,9 @@ void AudioSource::take(char* buff, size_t blocks, const WAVEFORMATEX &fmt)
 	}
 
 
-	if (audio_fmt.nChannels == fmt.nChannels &&
-		audio_fmt.nSamplesPerSec == fmt.nSamplesPerSec &&
-		audio_fmt.wBitsPerSample == fmt.wBitsPerSample)
+	if (audio_fmt.numChannels == fmt.numChannels &&
+		audio_fmt.sampleRate == fmt.sampleRate &&
+		audio_fmt.bitsPerSample == fmt.bitsPerSample)
 	{
 		memcpy(buff, tmp1, output_size);
 	}

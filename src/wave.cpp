@@ -1,6 +1,19 @@
 #include <audio-lib/wave.h>
 #include <string.h>
 
+WaveFmt makeWaveFmt(short numChannels, short bitsPerSample, long sampleRate)
+{
+    WaveFmt fmt;
+    fmt.audioFormat   = 1;
+    fmt.numChannels   = numChannels;
+    fmt.bitsPerSample = bitsPerSample;
+    fmt.sampleRate    = sampleRate;
+    fmt.blockAlign    = numChannels * bitsPerSample/8;
+    fmt.byteRate      = fmt.blockAlign * sampleRate;
+
+    return fmt;
+}
+
 bool isCorrectHeader(WAVEHeader &hdr)
 {
     if(memcmp(hdr.chunkID, "RIFF", 4) == 0)
@@ -14,9 +27,9 @@ bool isCorrectHeader(WAVEHeader &hdr)
                     int expectedSize = 4 + (8 + hdr.subchunk1Size) + (8 + hdr.subchunk2Size);
                     if(hdr.subchunk1Size == 16 && hdr.chunkSize == expectedSize)
                     {   
-                        int expectedAlign    = hdr.numChannels * hdr.bitsPerSample/8;
-                        int expectedByteRate = expectedAlign * hdr.sampleRate;
-                        if(hdr.blockAlign == expectedAlign && hdr.byteRate == expectedByteRate)
+                        int expectedAlign    = hdr.wfmt.numChannels * hdr.wfmt.bitsPerSample/8;
+                        int expectedByteRate = expectedAlign * hdr.wfmt.sampleRate;
+                        if(hdr.wfmt.blockAlign == expectedAlign && hdr.wfmt.byteRate == expectedByteRate)
                         {
                             return true;
                         }

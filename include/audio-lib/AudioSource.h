@@ -1,6 +1,7 @@
 #ifndef AUDIOSOURCE_H
 #define AUDIOSOURCE_H
 
+#include "wave.h"
 #include <windows.h>
 
 #define AS_FLAG_PERSIST  1
@@ -17,7 +18,7 @@ class AudioSource
 		DataNode* next;		// Pointer to the next Node
 	};
 
-	WAVEFORMATEX audio_fmt;	// Format of the Audio Source
+	WaveFmt audio_fmt;	// Format of the Audio Source
 
 	DataNode* head;			// Start of the Audio Data
 	DataNode* tail;			// End of the Audio Data
@@ -30,19 +31,19 @@ class AudioSource
 
 public:
 
-	AudioSource(WAVEFORMATEX fmt, unsigned char flags = 0);
+	AudioSource(WaveFmt fmt, unsigned char flags = 0);
 
 	~AudioSource();
 
 	// Adds n blocks of data to the end of the Audio Source
 	// One block of data depends on the channels, sampling freq. and sample size (nBlockAlign)
 	// The data being added has the wave format "fmt" (converted to the fmt of the Audio Source)
-	void add(const char* data, size_t blocks, const WAVEFORMATEX &fmt);
+	void add(const char* data, size_t blocks, const WaveFmt &fmt);
 
 	// Takes n blocks of data from the Audio Source across Data Nodes
 	// One block of data depends on the channels, sampling freq. and sample size
 	// The requested wave format provided in "fmt" (conversion applies)
-	void take(char* buff, size_t blocks, const WAVEFORMATEX &fmt);
+	void take(char* buff, size_t blocks, const WaveFmt &fmt);
 
 	// Clears the data from the Audio Source
 	// Deallocates all resources and resets pointers

@@ -9,6 +9,24 @@ using std::chrono::milliseconds;
 using std::chrono::duration;
 using std::chrono::duration_cast;
 
+#define FIRST_BIT_DISTANCE(num, dist) for(dist=0; (num&1) == 0; num>>=1, dist++);
+#define LAST_BIT_DISTANCE(num, dist)  for(dist=0; (num>>=1) != 0; dist++);
+
+unsigned long long channelMasks[]   = { 0xFFFFFFFFFFFFFFFFull, 0xAAAAAAAAAAAAAAAAull, 0x0000000000000000ull };
+unsigned long long sampSizeMasks[]  = { 0xFFFFFFFFFFFFFFFFull, 0xCCCCCCCCCCCCCCCCull, 0x0000000000000000ull };
+unsigned long long frequencyMasks[] = { 
+    0xFFFFFFFFFFFFFFF0ull, 0xFFFFFFFFFFFFFF00ull, 0xFFFFFFFFFFFFF000ull, 0xFFFFFFFFFFFF0000ull,
+    0xFFFFFFFFFFF00000ull, 0xFFFFFFFFFF000000ull, 0xFFFFFFFFF0000000ull, 0xFFFFFFFF00000000ull,
+    0xFFFFFFF000000000ull, 0xFFFFFF0000000000ull, 0xFFFFF00000000000ull, 0xFFFF000000000000ull,
+    0xFFF0000000000000ull, 0xFF00000000000000ull, 0xF000000000000000ull, 0x0000000000000000ull, };
+
+const short ChannelList[2]   = { 1,  2 };
+const short SampleList[2]    = { 8, 16 };
+const long  FrequencyList[11] = { 
+    8000,  11025, 16000, 22050, 
+    24000, 32000, 44100, 48000, 
+    88200, 96000, 0 };
+
 void CALLBACK audioCallback(HWAVEIN hwi, UINT uMsg, DWORD_PTR dwInstance, DWORD_PTR dwParam1, DWORD_PTR dwParam2)
 {
 	AudioOutput* aout = (AudioOutput*)dwInstance;
@@ -23,7 +41,10 @@ void CALLBACK audioCallback(HWAVEIN hwi, UINT uMsg, DWORD_PTR dwInstance, DWORD_
 
 	// If the audio device was closed, clean up the resources
 	if (uMsg == WOM_CLOSE)
-	{	aout->freeResources();
+	{	
+		aout->state   = Stopped;
+		aout->speaker = 0;
+		aout->freeResources();
 	}
 }
 
@@ -36,12 +57,12 @@ void audioLoaderThread(void* lparam)
 	long long interval   = 1000 / BUFFER_FRACTION;	// Time interval in milliseconds for the updates
 	long long next_count = 0;						// Time in milliseconds for the next update
 
-	int load_per_second  = aout->supported_fmt.nSamplesPerSec;
+	int load_per_second  = aout->supported_fmt.sampleRate;
 	int load_accumulator = 0;
 	int load_amount      = 0;
 
 	// Temporary buffer to store audio data
-	size_t buffer_bytes = aout->mixer_size * aout->supported_fmt.nBlockAlign;
+	size_t buffer_bytes = aout->mixer_size * aout->supported_fmt.blockAlign;
 	char*  temp_buffer  = new char[buffer_bytes];
 
 	// Timer variables for putting the thread to sleep
@@ -81,30 +102,59 @@ AudioOutput::AudioOutput()
 {
 }
 
+// Finds the closest supported wave format of the speaker device
+void AudioOutput::configFormat(size_t deviceID)
+{
+	WAVEFORMATEX fmt;
+	memcpy(&fmt, &desired_fmt, sizeof(WaveFmt));
+	fmt.cbSize = 0;
+
+	last_error = waveOutOpen(
+		&speaker, 
+		(UINT)deviceID, 
+		&fmt, 
+		NULL, 
+		NULL, 
+		WAVE_FORMAT_QUERY
+	);
+
+	if(last_error == 0)
+	{	supported_fmt = desired_fmt;
+	}
+	else
+	{	adjustFormat(getAvailFmts(deviceID), desired_fmt, supported_fmt);
+	}
+}
+
 // Opens an audio output device with the closest supported format
 // Sets up the audio buffers and starts the update thread
 // If there was already a device opened, it will close it first
 int AudioOutput::openDevice(size_t deviceID)
 {
 	closeDevice();
+	configFormat(deviceID);
+
+	WAVEFORMATEX fmt;
+	memcpy(&fmt, &supported_fmt, sizeof(WaveFmt));
+	fmt.cbSize = 0;
 
 	last_error = waveOutOpen(
 		&speaker, 
-		(UINT)0, 
-		&supported_fmt, 
+		(UINT)deviceID, 
+		&fmt, 
 		(DWORD_PTR)audioCallback, 
 		(DWORD_PTR)this, 
 		CALLBACK_FUNCTION
 	);
 
 	if (last_error == 0)
-	{
+	{	
 		buffer_index = 0;
-		buffer_size  = supported_fmt.nSamplesPerSec / BUFFER_FRACTION * BUFFER_SEGMENTS;
-		mixer_size   = supported_fmt.nSamplesPerSec / BUFFER_FRACTION + 1;
+		buffer_size  = supported_fmt.sampleRate / BUFFER_FRACTION * BUFFER_SEGMENTS;
+		mixer_size   = supported_fmt.sampleRate / BUFFER_FRACTION + 1;
 
-		size_t buffer_bytes = buffer_size * supported_fmt.nBlockAlign;
-		size_t mixer_bytes  = mixer_size  * supported_fmt.nBlockAlign;
+		size_t buffer_bytes = buffer_size * supported_fmt.blockAlign;
+		size_t mixer_bytes  = mixer_size  * supported_fmt.blockAlign;
 
 		audio_buffer = new char[buffer_bytes];
 		mixer_buffer = new char[mixer_bytes];
@@ -165,7 +215,7 @@ int AudioOutput::closeDevice()
 
 
 // Creates and returns a new Audio Source ties to the Audio Output
-AudioSource* AudioOutput::createSource(WAVEFORMATEX fmt, unsigned char flags)
+AudioSource* AudioOutput::createSource(WaveFmt fmt, unsigned char flags)
 {
 	if (head == NULL)
 	{	head = new AudioNode{ AudioSource(fmt, flags), NULL };
@@ -179,11 +229,141 @@ AudioSource* AudioOutput::createSource(WAVEFORMATEX fmt, unsigned char flags)
 	return &tail->source;
 }
 
+int adjustFormat(const unsigned long long supported, const WaveFmt &sample, WaveFmt &adjusted)
+{
+	size_t num_channels_index = sample.numChannels - 1;
+	size_t sample_size_index = (sample.bitsPerSample >> 3) - 1;
+	size_t frequency_index;
+
+	for(frequency_index=0; FrequencyList[frequency_index] != 0; frequency_index++)
+	{	if(sample.sampleRate <= FrequencyList[frequency_index])
+		{	break;
+		}
+	}
+
+	if(	num_channels_index <= 1 && sample_size_index <= 1 && (sample.bitsPerSample & 7) == 0)
+	{	
+        unsigned long long faster_sampling    = supported &  frequencyMasks[frequency_index];
+        unsigned long long slower_sampling    = supported & ~frequencyMasks[frequency_index];
+        unsigned long long fast_worse_channel = faster_sampling & sampSizeMasks[sample_size_index];
+        unsigned long long slow_worse_channel = slower_sampling & sampSizeMasks[sample_size_index];
+        unsigned long long fast_match         = fast_worse_channel & channelMasks[num_channels_index];
+
+        int format_offset = -1;
+
+        if(fast_match !=0) 
+            { FIRST_BIT_DISTANCE(fast_match, format_offset); }
+        else if(fast_worse_channel != 0) 
+            { FIRST_BIT_DISTANCE(fast_worse_channel, format_offset); }
+        else if(slow_worse_channel != 0) 
+            { LAST_BIT_DISTANCE(slow_worse_channel, format_offset); }
+        else if(faster_sampling != 0) 
+            { FIRST_BIT_DISTANCE(faster_sampling, format_offset); }
+        else if(slower_sampling != 0) 
+            { LAST_BIT_DISTANCE(slower_sampling, format_offset); }
+
+        if(format_offset != -1)
+        {   int f = format_offset  >> 2;
+            int s = (format_offset >> 1) & 1;
+            int c = format_offset & 1;
+
+            adjusted = makeWaveFmt(ChannelList[c], SampleList[s], FrequencyList[f]);
+            return 0;
+        }
+    }
+
+	return -1;
+}
+
+unsigned long long AudioOutput::getAvailFmts(size_t deviceID)
+{
+	HWAVEOUT device;
+	WAVEFORMATEX winfmt;
+	WaveFmt fmt;
+
+	winfmt.cbSize = 0;
+
+	unsigned long long supported   = 0;
+	long long format_mask = 1;
+
+	for(int i=0; i<10; i++)
+	{
+		fmt = makeWaveFmt(_Mono, _8Bit, FrequencyList[i]);
+		memcpy(&winfmt, &fmt, sizeof(WaveFmt));
+
+		last_error = waveOutOpen(&device,  (UINT)0, &winfmt, NULL, NULL, WAVE_FORMAT_QUERY);
+		if(last_error == 0) { supported |= format_mask; }
+		format_mask <<= 1;
+
+		winfmt.nChannels = _Stereo;
+		winfmt.nBlockAlign <<= 1;
+		winfmt.nAvgBytesPerSec <<= 1;
+
+		last_error = waveOutOpen(&device,  (UINT)0, &winfmt, NULL, NULL, WAVE_FORMAT_QUERY);
+		if(last_error == 0) { supported |= format_mask; }
+		format_mask <<= 1;
+
+		winfmt.nChannels = _Mono;
+		winfmt.wBitsPerSample = _16Bit;
+
+		last_error = waveOutOpen(&device,  (UINT)0, &winfmt, NULL, NULL, WAVE_FORMAT_QUERY);
+		if(last_error == 0) { supported |= format_mask; }
+		format_mask <<= 1;
+
+		winfmt.nChannels = _Stereo;
+		winfmt.nBlockAlign <<= 1;
+		winfmt.nAvgBytesPerSec <<= 1;
+
+		last_error = waveOutOpen(&device,  (UINT)0, &winfmt, NULL, NULL, WAVE_FORMAT_QUERY);
+		if(last_error == 0) { supported |= format_mask; }
+		format_mask <<= 1;
+	}
+
+	return supported;
+}
+
+int AudioOutput::setFormat(WaveFmt fmt)
+{
+	desired_fmt = fmt;
+	supported_fmt = fmt;
+
+	if(speaker != 0)
+	{
+		int devID;
+		last_error = waveOutGetID( speaker, (LPUINT)&devID);
+
+		if(last_error == 0)
+		{
+			closeDevice();
+			if(last_error == 0)
+			{
+				openDevice(devID);
+				if(last_error == 0)
+				{	return 0;
+				}
+			}
+		}
+	}
+
+	return -1;
+}
+
+int AudioOutput::setFormat(short channels, short bitsPerSample, long samplesPerSec)
+{
+	WaveFmt fmt = makeWaveFmt(
+		channels, 
+		bitsPerSample, 
+		samplesPerSec
+	);
+	
+	return setFormat(fmt);
+}
+
 // Gets n blocks of audio data mixed from all audio sources
 void AudioOutput::getAudioData(char* buffer, int blocks)
 {
-	int buffer_bytes = blocks * supported_fmt.nBlockAlign;
-	int sample_size  = supported_fmt.wBitsPerSample >> 3;
+	int buffer_bytes = blocks * supported_fmt.blockAlign;
+	int sample_size  = supported_fmt.bitsPerSample >> 3;
 
 
 	AudioNode* tmp = head;
@@ -229,7 +409,7 @@ void AudioOutput::mixAudioData(char* A, char* B, int buffer_size, int sample_siz
 // data wraps around at the beginning
 void AudioOutput::loadAudioBuffer(char* buffer, int blocks)
 {
-	int align = supported_fmt.nBlockAlign;
+	int align = supported_fmt.blockAlign;
 	int first, second;
 	
 	if(buffer_index + blocks <= buffer_size)
@@ -250,7 +430,9 @@ void AudioOutput::loadAudioBuffer(char* buffer, int blocks)
 // The audio buffers are deallocated and the update thread is stopped
 void AudioOutput::freeResources()
 {
-	speaker = 0;
+	speaker =  0;
+	state   = Stopped;
+
 	update_thread.join();
 
 	if(mixer_buffer != NULL)

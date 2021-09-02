@@ -7,61 +7,48 @@
 #include <audio-lib/AudioOutput.h>
 #include <audio-lib/wave.h>
 
+void getAudioClip(char* filename, char* &samples, int &size, WaveFmt &fmt)
+{
+	WAVEHeader wav;
+
+	std::ifstream in(filename, std::ios::binary);
+	in.read((char*)&wav, sizeof(WAVEHeader));
+
+	samples = new char[wav.subchunk2Size];
+	in.read(samples, wav.subchunk2Size);
+	in.close();
+
+	size = wav.subchunk2Size;
+	fmt = wav.wfmt;
+}
+
 int main()
 {
-	AudioOutput ostr;
-
-	WAVEHeader wav;
-	std::ifstream in;
+	AudioOutput  aout;
 	
-	// Setting Audio Format
-	WAVEFORMATEX format;
-	format.wFormatTag = WAVE_FORMAT_PCM;
-	format.nChannels = 2;
-	format.nSamplesPerSec = 44100;
-	format.wBitsPerSample = 16;
-	format.nBlockAlign = 4;
-	format.nAvgBytesPerSec = 176400;
-	format.cbSize = 0;
+	char   *clip1, *clip2;
+	int     size1,  size2;
+	WaveFmt fmt1,   fmt2; 
 
-	ostr.supported_fmt = format;
+	getAudioClip("clip1.wav", clip1, size1, fmt1);
+	getAudioClip("clip2.wav", clip2, size2, fmt2);
 
-	// Open speaker device 0 (default)
+	aout.setFormat(_Stereo, _16Bit, _22kHz);
 
-	int res;
-	if ((res = ostr.openDevice(0)) == 0)
-	{	
-		std::cout << "Playing...\n";
+	AudioSource* src1 = aout.createSource(fmt1, AS_FLAG_BUFFERED | AS_FLAG_LOOPED);
+	src1->add(clip1, size1 / fmt1.blockAlign, fmt1);
 
-		// Open and read test .wav audio file and extract header
-		in.open("clip1.wav", std::ios::binary);
-		in.read((char*)&wav, sizeof(WAVEHeader));
-		// Extract audio data from the test file
-		char* clip1 = new char[wav.subchunk2Size];
-		in.read(clip1, wav.subchunk2Size);
-		in.close();
+	AudioSource* src2 = aout.createSource(fmt2, AS_FLAG_BUFFERED | AS_FLAG_LOOPED);
+	src2->add(clip2, size2 / fmt2.blockAlign, fmt2);
 
-		// Create an AudioSource on the speaker and add the audio data from the file
-		AudioSource* src1 = ostr.createSource(format, AS_FLAG_BUFFERED | AS_FLAG_LOOPED);
-		src1->add(clip1, wav.subchunk2Size / wav.blockAlign, format);
+	aout.openDevice(0);
 
-
-
-		in.open("clip2.wav", std::ios::binary);
-		in.read((char*)&wav, sizeof(WAVEHeader));
-		// Extract audio data from the test file
-		char* clip2 = new char[wav.subchunk2Size];
-		in.read(clip2, wav.subchunk2Size);
-		in.close();
-
-		// Create an AudioSource on the speaker and add the audio data from the file
-		AudioSource* src2 = ostr.createSource(format, AS_FLAG_BUFFERED | AS_FLAG_LOOPED);
-		src2->add(clip2, wav.subchunk2Size / wav.blockAlign, format);
+	if (aout.state == Playing)
+	{
+		system("PAUSE");
+		aout.closeDevice();
 	}
 
-	system("PAUSE");
-
-	ostr.closeDevice();
-
-	system("PAUSE");
+	delete[] clip1;
+	delete[] clip2;
 }
