@@ -77,3 +77,49 @@ void Resampler::decimation_16(const short* src, short* dst, size_t channel, size
 		}
 	}
 }
+
+void Resampler::interpolation_16(const short* src, short* dst, size_t channel, size_t samples)
+{
+	size_t delay_size = inter_filter.size / L;				// Size of the delay line adjusted for interpolation
+	size_t start_coef = ((inter_filter.size >> 1) + 1) % L;	// Coefficient index offset of the first sample
+	size_t coef_idx   = start_coef;							// Index offset of the coefficients to use
+
+	llong  tmpVal;
+	int n, h;
+
+	short* inter_delay_line = (short*)inter_delay_lines[channel];
+	src += channel;	// Ptr of next sample in the source (current channel)
+	dst += channel;	// Ptr of next sample in the destination (current channel)
+
+	for (size_t i = 0; i < samples; i++)
+	{
+		// Add next samples to the delay line
+		inter_delay_line[inter_delay_idx] = *(src);
+		src += num_channels;
+		MODINC(inter_delay_idx, delay_size);
+
+		// Calculate L-1 and the real sample with a lowpass filter
+		for (size_t j = 0; j < L; j++)
+		{
+			tmpVal = 0;
+			n = inter_delay_idx;
+			h = coef_idx;
+
+			// Perform convolution between impulse response coefficients from the filter
+			// and the delay line sample values to interpolate the zero samples
+			// The coefficients are multiplied by the factor to add gain
+			for (size_t k = 0; k < delay_size; k++)
+			{
+				tmpVal += inter_filter.coefs[h] * L * inter_delay_line[n];
+				MODINC(n, delay_size);
+				h += L;
+			}
+
+			// Add next sample from the accumulator to the destination
+			// Divide the accumulator with the scale of the filter
+			*dst = tmpVal >> 32;
+			dst += num_channels;
+			MODINC(coef_idx, L);
+		}
+	}
+}
