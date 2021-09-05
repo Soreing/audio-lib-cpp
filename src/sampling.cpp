@@ -117,9 +117,91 @@ void Resampler::interpolation_16(const short* src, short* dst, size_t channel, s
 
 			// Add next sample from the accumulator to the destination
 			// Divide the accumulator with the scale of the filter
-			*dst = tmpVal >> 32;
+			*dst = (short)(tmpVal >> 32);
 			dst += num_channels;
 			MODINC(coef_idx, L);
 		}
+	}
+}
+
+void Resampler::non_integral_16(const short* src, short* dst, size_t channel, size_t samples)
+{
+	size_t inter_size = inter_filter.size / L;				// Size of the delay line adjusted for interpolation
+	size_t start_coef = ((inter_filter.size >> 1) + 1) % L;	// Coefficient index offset of the first sample
+	size_t coef_idx = start_coef;							// Index offset of the coefficients to use
+
+	llong tmpVal;
+	int m, n, h;
+
+	short* inter_delay_line = (short*)inter_delay_lines[channel];
+	short* decim_delay_line = (short*)decim_delay_lines[channel];
+	src += channel;	// Ptr of next sample in the source (current channel)
+	dst += channel;	// Ptr of next sample in the destination (current channel)
+
+	for (size_t i = 0;;)
+	{
+		// Calculate L-1 and the real sample with a lowpass filter
+		for (size_t j = decim_fraction; j < M; j++)
+		{
+			// Add new sample if the previous has been fully interpolated
+			if (coef_idx == start_coef)
+			{
+				// If the samples ended, quit the function
+				if (i == samples - 1)
+				{
+					return;
+				}
+
+				inter_delay_line[inter_delay_idx] = *src;
+				MODINC(inter_delay_idx, inter_size);
+				src += num_channels;
+				i++;
+			}
+
+			tmpVal = 0;
+			n = inter_delay_idx;
+			h = coef_idx;
+
+			// Perform convolution between impulse response coefficients from the filter
+			// and the delay line sample values to interpolate the zero samples
+			// The coefficients are multiplied by the factor to add gain
+			for (size_t k = 0; k < inter_size; k++)
+			{
+				tmpVal += inter_filter.coefs[h] * L * inter_delay_line[n];
+				MODINC(n, inter_size);
+				h += L;
+			}
+
+			// Add next sample from the accumulator to the destination
+			// Divide the accumulator with the scale of the filter
+			decim_delay_line[decim_delay_idx] = (short)(tmpVal >> 32);
+			MODINC(decim_delay_idx, decim_filter.size);
+			MODINC(decim_fraction, M);
+			MODINC(coef_idx, L);
+		}
+
+		tmpVal = 0;
+		m = decim_delay_idx;
+		n = decim_delay_idx;
+		MODDEC(n, decim_filter.size);
+
+		// Perform convolution between impulse response coefficients from the filter
+		// and the delay line sample values at the symmetric ends of the response
+		for (size_t k = 0; k < (decim_filter.size >> 1); k++)
+		{
+			tmpVal += decim_filter.coefs[k] * ((llong)decim_delay_line[m] + (llong)decim_delay_line[n]);
+			MODINC(m, decim_filter.size);
+			MODDEC(n, decim_filter.size);
+		}
+
+		// If the delay line in odd, the middle value is added separately
+		if (decim_filter.size & 1)
+		{
+			tmpVal += decim_filter.coefs[decim_filter.size >> 1] * decim_delay_line[n];
+		}
+
+		// Divide the accumulator with the scale of the filter
+		*dst = (short)(tmpVal >> 32);
+		dst += num_channels;
 	}
 }
