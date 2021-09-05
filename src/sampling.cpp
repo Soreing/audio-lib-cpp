@@ -1,4 +1,5 @@
 #include <audio-lib/sampling.h>
+#include <audio-lib/primes.h>
 
 #define MODINC(n, m) n = n == m-1 ? 0 : n+1;
 #define MODDEC(n, m) n = n == 0 ? m-1 : n-1;
@@ -205,3 +206,49 @@ void Resampler::non_integral_16(const short* src, short* dst, size_t channel, si
 		dst += num_channels;
 	}
 }
+
+size_t gcd(size_t a, size_t b)
+{
+	return b ? gcd(b, a % b) : a;
+}
+
+size_t lcm(size_t a, size_t b)
+{
+	return a * b / gcd(a, b);
+}
+
+int factorize(size_t val, size_t* factors, size_t &size)
+{
+	size_t prime_idx;
+	size = 0;
+
+	while(val > 1)
+	{
+		prime_idx = 0;
+		
+		for(prime_idx = 0; prime_idx < PRIME_COUNT; prime_idx++)
+		{	
+			if(val % primes[prime_idx] == 0)
+			{	break;
+			}
+		}
+
+		if(prime_idx == PRIME_COUNT)
+		{	return -1;
+		}
+
+		factors[size++] = primes[prime_idx];
+		val /= primes[prime_idx];
+	}
+
+	return 0;
+}
+
+void get_convertion_ratio(size_t src, size_t dst, size_t &L, size_t &M)
+{
+	size_t lcm_val = lcm(src, dst);
+	L = lcm_val / src;
+	M = lcm_val / dst;
+}
+
+

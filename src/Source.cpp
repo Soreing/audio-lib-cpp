@@ -6,6 +6,8 @@
 
 #include <audio-lib/AudioOutput.h>
 #include <audio-lib/wave.h>
+#include <audio-lib/sampling.h>
+
 
 void getAudioClip(char* filename, char* &samples, int &size, WaveFmt &fmt)
 {
@@ -24,6 +26,28 @@ void getAudioClip(char* filename, char* &samples, int &size, WaveFmt &fmt)
 
 int main()
 {
+	size_t L, M;
+
+	get_convertion_ratio(44100, 48000, L, M);
+	std::cout << "L= " << L << "   M= " << M << "\n";
+
+	size_t LSize, MSize;
+	size_t Ls[50], Ms[50];
+	factorize(L, Ls, LSize);
+	factorize(M, Ms, MSize);
+
+	std::cout << "\nL= ";
+	for(size_t i = 0; i < LSize; i++)
+		std::cout << Ls[i] << ", ";
+
+	std::cout << "\nM= ";
+	for(size_t i = 0; i < MSize; i++)
+		std::cout << Ms[i] << ", ";
+
+	std::cout<< "\n";
+
+	system("PAUSE");
+
 	AudioOutput  aout;
 	
 	char   *clip1, *clip2;
