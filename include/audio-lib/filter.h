@@ -7,7 +7,7 @@ class FIRFilter_i64
 {
 public:
 	llong* coefs;
-	int    size;
+	size_t size;
 
 public:
 	FIRFilter_i64(int taps, int stop_freq, int sample_freq);
