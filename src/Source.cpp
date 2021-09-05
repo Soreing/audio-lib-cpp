@@ -33,7 +33,7 @@ int main()
 	getAudioClip("clip1.wav", clip1, size1, fmt1);
 	getAudioClip("clip2.wav", clip2, size2, fmt2);
 
-	aout.setFormat(_Stereo, _16Bit, _22kHz);
+	aout.setFormat(_Stereo, _16Bit, _44kHz);
 
 	AudioSource* src1 = aout.createSource(fmt1, AS_FLAG_BUFFERED | AS_FLAG_LOOPED);
 	src1->add(clip1, size1 / fmt1.blockAlign, fmt1);
