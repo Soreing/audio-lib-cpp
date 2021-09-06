@@ -1,5 +1,6 @@
 #include <audio-lib/sampling.h>
 #include <audio-lib/primes.h>
+#include <iostream>
 
 #define MODINC(n, m) n = n == m-1 ? 0 : n+1;
 #define MODDEC(n, m) n = n == 0 ? m-1 : n-1;
@@ -207,29 +208,18 @@ void Resampler::non_integral_16(const short* src, short* dst, size_t channel, si
 	}
 }
 
-size_t gcd(size_t a, size_t b)
+int get_prime_factors(size_t value, factor* factors, int size)
 {
-	return b ? gcd(b, a % b) : a;
-}
-
-size_t lcm(size_t a, size_t b)
-{
-	return a * b / gcd(a, b);
-}
-
-int factorize(size_t val, size_t* factors, size_t &size)
-{
-	size_t prime_idx;
-	size = 0;
-
-	while(val > 1)
+	int new_size = 0;
+	int prime_idx;
+	int factor_idx;
+	
+	while(value > 1)
 	{
-		prime_idx = 0;
-		
 		for(prime_idx = 0; prime_idx < PRIME_COUNT; prime_idx++)
-		{	
-			if(val % primes[prime_idx] == 0)
-			{	break;
+		{	if(value % primes[prime_idx] == 0)
+			{	value /= primes[prime_idx];
+				break;
 			}
 		}
 
@@ -237,18 +227,66 @@ int factorize(size_t val, size_t* factors, size_t &size)
 		{	return -1;
 		}
 
-		factors[size++] = primes[prime_idx];
-		val /= primes[prime_idx];
+		for(factor_idx = 0; factor_idx < new_size; factor_idx++)
+		{	if(primes[prime_idx] == factors[factor_idx].value)
+			{	factors[factor_idx].count++;
+				break;
+			}
+		}
+
+		if(factor_idx == new_size)
+		{	if(new_size == size)
+			{	return -1;
+			}
+
+			factors[factor_idx] = factor{primes[prime_idx], 1};
+			new_size++;
+		}
 	}
 
-	return 0;
+	return new_size;
 }
 
-void get_convertion_ratio(size_t src, size_t dst, size_t &L, size_t &M)
+void get_scaling_factors(factor* L_factors, int &L_size, factor* M_factors, int &M_size)
 {
-	size_t lcm_val = lcm(src, dst);
-	L = lcm_val / src;
-	M = lcm_val / dst;
+	int L_newsize = 0;
+	int M_newsize = 0;
+	int i,j;
+
+	for(i = 0, j = 0; i < L_size && j < M_size;)
+	{
+		if(L_factors[i].value < M_factors[j].value)
+		{	L_factors[L_newsize++] = L_factors[i++];
+		}
+		else if(L_factors[i].value > M_factors[j].value)
+		{	M_factors[M_newsize++] = M_factors[j++];
+		}
+		else
+		{	
+			if(L_factors[i].count < M_factors[j].count)
+			{	M_factors[M_newsize] = M_factors[j];
+				M_factors[M_newsize].count -= L_factors[i].count;
+				M_newsize++;
+			}
+			else if(L_factors[i].count > M_factors[j].count)
+			{	L_factors[L_newsize] = L_factors[i];
+				L_factors[L_newsize].count -= M_factors[j].count;
+				L_newsize++;
+			}
+
+			i++;
+			j++;
+		}
+	}
+
+	while(i < L_size)
+	{	L_factors[L_newsize++] = L_factors[i++];
+	}
+
+	while(j < M_size)
+	{	M_factors[M_newsize++] = M_factors[j++];
+	}
+
+	L_size = L_newsize;
+	M_size = M_newsize;
 }
-
-

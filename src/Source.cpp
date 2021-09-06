@@ -8,7 +8,6 @@
 #include <audio-lib/wave.h>
 #include <audio-lib/sampling.h>
 
-
 void getAudioClip(char* filename, char* &samples, int &size, WaveFmt &fmt)
 {
 	WAVEHeader wav;
@@ -26,25 +25,32 @@ void getAudioClip(char* filename, char* &samples, int &size, WaveFmt &fmt)
 
 int main()
 {
-	size_t L, M;
+	factor Lfs[10], Mfs[10];
+	int _48size = get_prime_factors(48000, Lfs, 10);
+	int _44size = get_prime_factors(44100, Mfs, 10);
 
-	get_convertion_ratio(44100, 48000, L, M);
-	std::cout << "L= " << L << "   M= " << M << "\n";
+	std::cout<< "All:\nL= ";
+	for(int i=0; i<_48size; i++)
+	{	std::cout <<  Lfs[i].value << "^" << Lfs[i].count << "     ";
+	}	std::cout<< "\n";
 
-	size_t LSize, MSize;
-	size_t Ls[50], Ms[50];
-	factorize(L, Ls, LSize);
-	factorize(M, Ms, MSize);
+	std::cout<< "M= ";
+	for(int i=0; i<_44size; i++)
+	{	std::cout <<  Mfs[i].value << "^" << Mfs[i].count << "     ";
+	}	std::cout<< "\n";
 
-	std::cout << "\nL= ";
-	for(size_t i = 0; i < LSize; i++)
-		std::cout << Ls[i] << ", ";
 
-	std::cout << "\nM= ";
-	for(size_t i = 0; i < MSize; i++)
-		std::cout << Ms[i] << ", ";
+	get_scaling_factors(Lfs, _48size, Mfs, _44size);
 
-	std::cout<< "\n";
+	std::cout<< "\nUncommon:\nL= ";
+	for(int i=0; i<_48size; i++)
+	{	std::cout <<  Lfs[i].value << "^" << Lfs[i].count << "     ";
+	}	std::cout<< "\n";
+
+	std::cout<< "M= ";
+	for(int i=0; i<_44size; i++)
+	{	std::cout <<  Mfs[i].value << "^" << Mfs[i].count << "     ";
+	}	std::cout<< "\n";
 
 	system("PAUSE");
 

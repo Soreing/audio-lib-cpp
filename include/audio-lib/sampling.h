@@ -28,8 +28,13 @@ public:
 	void non_integral_16(const short* src, short* dst, size_t channel, size_t samples);
 };
 
-void get_convertion_ratio(size_t src, size_t dst, size_t &L, size_t &M);
-int factorize(size_t val, size_t* factors, size_t &size);
+struct factor
+{	int value;
+	int count;
+};
+
+int get_prime_factors(size_t value, factor* factors, int size);
+void get_scaling_factors(factor* L_factors, int &L_size, factor* M_factors, int &M_size);
 
 #endif
 
