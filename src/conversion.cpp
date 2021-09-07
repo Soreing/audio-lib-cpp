@@ -1,11 +1,12 @@
 #include <audio-lib/conversion.h>
 #include <audio-lib/primes.h>
+#include <iostream>
 
 // Moves the samples from unsigned to signed wave and scales it up
 void bit_depth_8_to_16(const unsigned char* src, short* dst, size_t samples)
 {
     for(size_t i = 0; i < samples; i++)
-    {   dst[i] = ((short)((char)(src[i] - 127))) << 8;
+    {   dst[i] = ((short)((char)(src[i] - 128))) << 8;
     }
 }
 
@@ -13,7 +14,39 @@ void bit_depth_8_to_16(const unsigned char* src, short* dst, size_t samples)
 void bit_depth_16_to_8(const short* src, unsigned char* dst, size_t samples)
 {
     for(size_t i = 0; i < samples; i++)
-    {   dst[i] = ((char)(src[i] >> 8)) + 127;
+    {   dst[i] = ((char)(src[i] / 256)) + 128;
+    }
+}
+
+// Duplicates samples to create 2 channels of the same wave
+void mono_to_stereo(const char* src, const char* dst, size_t depth, size_t samples)
+{
+    for(size_t i = 0; i < samples; i++)
+    {
+        if(depth == 8)
+        {   *((unsigned char*)dst + (i<<1))     = *((unsigned char*)src + i);
+            *((unsigned char*)dst + (i<<1) + 1) = *((unsigned char*)src + i);
+        }
+        else if (depth == 16)
+        {   *((short*)dst + (i<<1))     = *((short*)src + i);
+            *((short*)dst + (i<<1) + 1) = *((short*)src + i);
+        }
+    }
+}
+
+// Averages 2 consecutive samples to combines 2 waves into 1
+void stereo_to_mono(const char* src, const char* dst, size_t depth, size_t samples)
+{
+    for(size_t i = 0, sum = 0; i < samples; i++)
+    {
+        if(depth == 8)
+        {   sum = *((unsigned char*)src + (i<<1)) + (int)*((unsigned char*)src + (i<<1) + 1);
+            *((unsigned char*)dst + i) = (unsigned char)(sum >> 2);
+        }
+        else if (depth == 16)
+        {   sum = *((short*)src + (i<<1)) + (int)*((short*)src + (i<<1) + 1);
+            *((short*)dst + i) = (short)(sum >> 2);
+        }
     }
 }
 
