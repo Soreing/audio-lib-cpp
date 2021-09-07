@@ -1,6 +1,22 @@
 #include <audio-lib/conversion.h>
 #include <audio-lib/primes.h>
 
+// Moves the samples from unsigned to signed wave and scales it up
+void bit_depth_8_to_16(const unsigned char* src, short* dst, size_t samples)
+{
+    for(size_t i = 0; i < samples; i++)
+    {   dst[i] = ((short)((char)(src[i] - 127))) << 8;
+    }
+}
+
+// Scales the samples down and moves them from signed to unsigned wave
+void bit_depth_16_to_8(const short* src, unsigned char* dst, size_t samples)
+{
+    for(size_t i = 0; i < samples; i++)
+    {   dst[i] = ((char)(src[i] >> 8)) + 127;
+    }
+}
+
 int get_prime_factors(size_t value, factor* factors, int size)
 {
 	int new_size = 0;
