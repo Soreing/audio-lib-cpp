@@ -3,7 +3,7 @@
 
 #include "filter.h"
 
-class Resampler
+class RateConverter
 {
 	const size_t L, M;
 	const size_t num_channels;
@@ -20,27 +20,13 @@ class Resampler
 	size_t decim_fraction;
 
 public:
-	Resampler(size_t L, size_t M, size_t taps, size_t channels, size_t depth);
-	~Resampler();
+	RateConverter(size_t L, size_t M, size_t taps, size_t channels, size_t depth);
+	~RateConverter();
 
 	void decimation_16(const short* src, short* dst, size_t channel, size_t samples);
 	void interpolation_16(const short* src, short* dst, size_t channel, size_t samples);
 	void non_integral_16(const short* src, short* dst, size_t channel, size_t samples);
 };
-
-struct factor
-{	int value;
-	int count;
-};
-
-struct scale
-{	int L;
-	int M;
-};
-
-int get_prime_factors(size_t value, factor* factors, int size);
-void get_scaling_factors(factor* L_factors, int &L_size, factor* M_factors, int &M_size);
-void optimize_scaling_factors(scale* scales, int &S_size, factor* L_factors, int L_size, factor* M_factors, int M_size);
 
 #endif
 
