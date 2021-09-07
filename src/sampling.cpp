@@ -290,3 +290,113 @@ void get_scaling_factors(factor* L_factors, int &L_size, factor* M_factors, int 
 	L_size = L_newsize;
 	M_size = M_newsize;
 }
+
+void optimize_scaling_factors(scale* scales, int &S_size, factor* L_factors, int L_size, factor* M_factors, int M_size)
+{
+	size_t L_product=1;
+	size_t M_product=1;
+	
+	int ratio;
+	int S_newsize = 0;
+	int i, j, k, L, M;
+
+	for(i = L_size-1, j = M_size-1; i >= 0;)
+	{
+		if(L_factors[i].count == 0)
+		{	i--;
+		}
+		else
+		{
+			L_factors[i].count--;
+			L_product *= L_factors[i].value;
+
+			L = L_factors[i].value;
+			M = 1;
+
+			while(true)
+			{
+				ratio = L_product / M_product;
+
+				// Get the last factor of M
+				while( j >= 0 && M_factors[j].count == 0)
+				{	j--;
+				}
+
+				// Find a large factor to approach the ratio of 1
+				for(k = j; k >= 0 ; k--)
+				{	if(M_factors[k].value <= ratio && M_factors[k].count > 0)
+					{	break;
+					}
+				}
+
+				// If a factor is found, take it and add it to M and M_product
+				if(k >= 0)
+				{	M_factors[k].count--;
+					M_product *= M_factors[k].value;
+					M *= M_factors[k].value;
+				}
+				// If no more factors found and M is not 1, add pair
+				else if( M != 1)
+				{	scales[S_newsize] = scale{L, M};
+					S_newsize++;
+					break;
+				}
+				// If no factors are found at all, increase L by another small factor if exists
+				else
+				{
+					// If there are no more factors in M, just add L
+					if(j == -1)
+					{	scales[S_newsize] = scale{L, 1};
+						S_newsize++;
+						break;
+					}
+
+					// Find the smallest factor
+					for(k = 0; k <= i; k++)
+					{	if(L_factors[k].count > 0)
+						{	break;
+						}
+					}
+
+					std::cout<< "K= " << k << "\n";
+
+					// If valid, take and multiply the factor to L
+					if(k <= i)
+					{	L_factors[k].count--;
+						L_product *= L_factors[k].value;
+						L *= L_factors[k].value;
+					}
+					// Otherwise ran out of factors to multiply L with
+					// Find the largest factor in M and take it
+					else
+					{	for(k = j; k >= 0 ; k--)
+						{	if(M_factors[k].count > 0)
+							{	break;
+							}
+						}
+
+						M_factors[k].count--;
+						scales[S_newsize] = scale{L, M_factors[k].value};
+						S_newsize++;
+						break;
+					}
+				}
+			}
+		}
+	}
+
+	while(j >= 0)
+	{
+		if(M_factors[j].count == 0)
+		{	j--;
+		}
+		else
+		{	M_factors[j].count--;
+			scales[S_newsize] = scale{1, M_factors[j].value};
+			std::cout<< "Added1\n"; 
+			S_newsize++;
+		}
+	}
+
+	S_size = S_newsize;
+}

@@ -25,35 +25,6 @@ void getAudioClip(char* filename, char* &samples, int &size, WaveFmt &fmt)
 
 int main()
 {
-	factor Lfs[10], Mfs[10];
-	int _48size = get_prime_factors(48000, Lfs, 10);
-	int _44size = get_prime_factors(44100, Mfs, 10);
-
-	std::cout<< "All:\nL= ";
-	for(int i=0; i<_48size; i++)
-	{	std::cout <<  Lfs[i].value << "^" << Lfs[i].count << "     ";
-	}	std::cout<< "\n";
-
-	std::cout<< "M= ";
-	for(int i=0; i<_44size; i++)
-	{	std::cout <<  Mfs[i].value << "^" << Mfs[i].count << "     ";
-	}	std::cout<< "\n";
-
-
-	get_scaling_factors(Lfs, _48size, Mfs, _44size);
-
-	std::cout<< "\nUncommon:\nL= ";
-	for(int i=0; i<_48size; i++)
-	{	std::cout <<  Lfs[i].value << "^" << Lfs[i].count << "     ";
-	}	std::cout<< "\n";
-
-	std::cout<< "M= ";
-	for(int i=0; i<_44size; i++)
-	{	std::cout <<  Mfs[i].value << "^" << Mfs[i].count << "     ";
-	}	std::cout<< "\n";
-
-	system("PAUSE");
-
 	AudioOutput  aout;
 	
 	char   *clip1, *clip2;
