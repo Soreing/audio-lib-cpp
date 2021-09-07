@@ -17,8 +17,8 @@ void bit_depth_16_to_8(const short* src, unsigned char* dst, size_t samples);
 void mono_to_stereo(const char* src, const char* dst, size_t depth, size_t samples);
 void stereo_to_mono(const char* src, const char* dst, size_t depth, size_t samples);
 
-int get_prime_factors(size_t value, factor* factors, int size);
-void get_scaling_factors(factor* L_factors, int &L_size, factor* M_factors, int &M_size);
+int get_prime_factors(size_t value, factor* factors);
+void remove_common_factors(factor* L_factors, const int L_size, factor* M_factors, const int M_size);
 void optimize_scaling_factors(scale* scales, int &S_size, factor* L_factors, int L_size, factor* M_factors, int M_size);
 
 #endif

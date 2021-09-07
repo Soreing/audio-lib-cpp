@@ -2,6 +2,9 @@
 #include <audio-lib/primes.h>
 #include <iostream>
 
+#define MIN(a, b) a < b ? a : b
+#define MAX(a, b) a > b ? a : b
+
 // Moves the samples from unsigned to signed wave and scales it up
 void bit_depth_8_to_16(const unsigned char* src, short* dst, size_t samples)
 {
@@ -50,87 +53,72 @@ void stereo_to_mono(const char* src, const char* dst, size_t depth, size_t sampl
     }
 }
 
-int get_prime_factors(size_t value, factor* factors, int size)
+// Finds the prime factors and their count of an integer value
+// If called with factors=NULL, returns the space needed to store the result
+int get_prime_factors(size_t value, factor* factors)
 {
-	int new_size = 0;
-	int prime_idx;
-	int factor_idx;
+	int prime_idx   = 0;
+	int factor_idx  = 0;
+    int last_factor = 0;
 	
 	while(value > 1)
-	{
-		for(prime_idx = 0; prime_idx < PRIME_COUNT; prime_idx++)
+	{   
+        // Find the next factor in the value
+		for(; prime_idx < PRIME_COUNT; prime_idx++)
 		{	if(value % primes[prime_idx] == 0)
-			{	value /= primes[prime_idx];
+			{   value /= primes[prime_idx];
 				break;
 			}
 		}
 
-		if(prime_idx == PRIME_COUNT)
+        // If reached the end of the prime list and the value
+        // is still not 1, the factor is too large to be found
+		if(prime_idx == PRIME_COUNT && value > 1)
 		{	return -1;
 		}
 
-		for(factor_idx = 0; factor_idx < new_size; factor_idx++)
-		{	if(primes[prime_idx] == factors[factor_idx].value)
-			{	factors[factor_idx].count++;
-				break;
-			}
-		}
-
-		if(factor_idx == new_size)
-		{	if(new_size == size)
-			{	return -1;
-			}
-
-			factors[factor_idx] = factor{primes[prime_idx], 1};
-			new_size++;
-		}
+        if(primes[prime_idx] != last_factor)
+        {   // Set the last factor to the new one 
+            // and add a new struct with count 1
+            last_factor = primes[prime_idx];
+            factor_idx++;
+            if(factors != NULL)
+            {   factors[factor_idx-1] = factor{last_factor, 1};
+            }
+        }
+        else
+        {   // Increment the count of the last factor
+            if(factors != NULL)
+            {   factors[factor_idx-1].count++;
+            }
+        }
 	}
 
-	return new_size;
+    return factor_idx;
 }
 
-void get_scaling_factors(factor* L_factors, int &L_size, factor* M_factors, int &M_size)
+// Removes the common factors between two numbers
+void remove_common_factors(factor* L_factors, const int L_size, factor* M_factors, const int M_size)
 {
-	int L_newsize = 0;
-	int M_newsize = 0;
-	int i,j;
-
-	for(i = 0, j = 0; i < L_size && j < M_size;)
+    int i, j, min;
+    for(i = 0, j = 0; i < L_size && j < M_size;)
 	{
+        // Case where L's value is less, L must be incremented
 		if(L_factors[i].value < M_factors[j].value)
-		{	L_factors[L_newsize++] = L_factors[i++];
+		{	i++;
 		}
+        // Case where M's value is less, M must be incremented
 		else if(L_factors[i].value > M_factors[j].value)
-		{	M_factors[M_newsize++] = M_factors[j++];
+		{	j++;
 		}
+        // Case when the factor values are identical
+        // Subtract from both the amount that is common
 		else
-		{	
-			if(L_factors[i].count < M_factors[j].count)
-			{	M_factors[M_newsize] = M_factors[j];
-				M_factors[M_newsize].count -= L_factors[i].count;
-				M_newsize++;
-			}
-			else if(L_factors[i].count > M_factors[j].count)
-			{	L_factors[L_newsize] = L_factors[i];
-				L_factors[L_newsize].count -= M_factors[j].count;
-				L_newsize++;
-			}
-
-			i++;
-			j++;
+		{   min = MIN(L_factors[i].count, M_factors[j].count);
+            L_factors[i++].count -= min;
+            M_factors[j++].count -= min;
 		}
 	}
-
-	while(i < L_size)
-	{	L_factors[L_newsize++] = L_factors[i++];
-	}
-
-	while(j < M_size)
-	{	M_factors[M_newsize++] = M_factors[j++];
-	}
-
-	L_size = L_newsize;
-	M_size = M_newsize;
 }
 
 void optimize_scaling_factors(scale* scales, int &S_size, factor* L_factors, int L_size, factor* M_factors, int M_size)
