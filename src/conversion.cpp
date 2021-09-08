@@ -8,9 +8,25 @@
 #define MAX(a, b) a > b ? a : b
 
 FormatConverter::FormatConverter(WaveFmt in, WaveFmt out) :
-    in_fmt(in), out_fmt(out), sub_steps(NULL), sub_buffers(NULL),
+    sub_steps(NULL), sub_buffers(NULL),
     channel_ptr(NULL), depth_ptr(NULL), rate_ptr(NULL)
 {
+    init(in, out);
+}
+
+FormatConverter::~FormatConverter()
+{
+    clear();
+}
+
+// Initializes the input/output formats and the required buffers and converters
+void FormatConverter::init(WaveFmt in, WaveFmt out)
+{
+    clear();
+
+    in_fmt  = in;
+    out_fmt = out;
+
     // Maximum number of blocks processed by a converter
     max_input  = in.sampleRate/100;
     max_output = out.sampleRate/100;
@@ -92,14 +108,16 @@ FormatConverter::FormatConverter(WaveFmt in, WaveFmt out) :
 }
 
 // Deallocates any dynamic arrays that were created
-FormatConverter::~FormatConverter()
+void FormatConverter::clear()
 {
     if(channel_ptr != NULL)
     {   delete[] channel_ptr;
+        channel_ptr = NULL;
     }
 
     if(depth_ptr != NULL)
     {   delete[] depth_ptr;
+        depth_ptr = NULL;
     }
 
     if(rate_ptr != NULL)
@@ -108,10 +126,16 @@ FormatConverter::~FormatConverter()
         }
 
         delete[] rate_ptr;
+        rate_ptr = NULL;
+
         delete[] sub_steps;
+        sub_steps = NULL;
+
         delete[] sub_buffers;
+        sub_buffers= NULL;
     }
 }
+
 
 // Breaks down the conversion of a larger wave to smaller steps
 // Returns the number of blocks that resulted from the conversion

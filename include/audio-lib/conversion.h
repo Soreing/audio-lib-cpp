@@ -38,6 +38,11 @@ public:
     FormatConverter(WaveFmt in, WaveFmt out);
     ~FormatConverter();
 
+    // Initializes the input/output formats and the required buffers and converters
+    void init(WaveFmt in, WaveFmt out);
+    // Deallocates any dynamic arrays that were created
+    void clear();
+
     // Breaks down the conversion of a larger wave to smaller steps
     // Returns the number of blocks that resulted from the conversion
     int convert(char* src, char* dst, size_t blocks);
