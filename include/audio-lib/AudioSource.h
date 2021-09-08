@@ -1,7 +1,8 @@
 #ifndef AUDIOSOURCE_H
 #define AUDIOSOURCE_H
 
-#include "wave.h"
+#include <audio-lib/wave.h>
+#include <audio-lib/conversion.h>
 #include <windows.h>
 
 #define AS_FLAG_PERSIST  1
@@ -13,12 +14,17 @@
 class AudioSource
 {
 	struct DataNode
-	{	char* bytes;		// Bytes of data
-		size_t length;		// Number of blocks of data
+	{	char* origin;		// Bytes of the original data
+		size_t orig_len;	// Number of blocks in the original data
+
+		char* processed;	// Bytes of converted data ready for use
+		size_t proc_len;	// Number of blocks in the processed data
+
 		DataNode* next;		// Pointer to the next Node
 	};
 
-	WaveFmt audio_fmt;	// Format of the Audio Source
+	FormatConverter conv	// Format converter to convert input data
+	WaveFmt audio_fmt;		// Format of the Audio Source
 
 	DataNode* head;			// Start of the Audio Data
 	DataNode* tail;			// End of the Audio Data
