@@ -1,6 +1,7 @@
 #ifndef AUDIO_CONVERSION_H
 #define AUDIO_CONVERSION_H
 
+#include <audio-lib/wave.h>
 #include <audio-lib/sampling.h>
 
 struct factor
@@ -13,6 +14,26 @@ struct scale
 	int M;
 };
 
+class FormatConverter
+{
+public:
+    int max_input;
+    int max_output;
+
+    WaveFmt in_fmt;
+    WaveFmt out_fmt;
+
+    char* channel_ptr;
+    char* depth_ptr;
+    char* rate_ptr;
+
+    int L;
+    int M; 
+
+    int step_count;
+    RateConverter* sub_steps;
+    char** sub_buffers;
+};
 
 int convert_sample_rate(const unsigned char* src, unsigned char* dst, size_t blocks, RateConverter &conv);
 int convert_sample_rate(const short* src, short* dst, size_t blocks, RateConverter &conv);
