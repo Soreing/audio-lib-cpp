@@ -1,5 +1,6 @@
 #include <audio-lib/conversion.h>
 #include <audio-lib/primes.h>
+#include <iostream>
 #include <string.h>
 #include <math.h>
 
@@ -73,7 +74,7 @@ FormatConverter::FormatConverter(WaveFmt in, WaveFmt out) :
         int buffer_size = max_input;
         for(int i = 0; i < step_count; i++)
         {   
-            tap_count = (pairs[i].M * 12) | 1;
+            tap_count = (pairs[i].M * 3) | 1;
             sub_steps[i].init(pairs[i].L, pairs[i].M, tap_count, out_fmt.numChannels, out_fmt.bitsPerSample);
             
             buffer_size = (buffer_size * pairs[i].L / pairs[i].M) + 1;
@@ -111,26 +112,29 @@ FormatConverter::~FormatConverter()
     }
 }
 
-void FormatConverter::convert(char* src, char* dst, size_t blocks)
+int FormatConverter::convert(char* src, char* dst, size_t blocks)
 {
-    int size = 0;
+    int step_size  = 0;
+    int total_size = 0;
+
     while(blocks > 0)
     {
         if((int)blocks > max_input)
-        {   blocks -= max_input;
-            size = sub_convert(src, dst, max_input);
-            //std::cout << size << "\n";
-            dst += size;
+        {   step_size = sub_convert(src, dst, max_input);
             src += max_input * in_fmt.blockAlign;
+            blocks -= max_input;
         }
         else
-        {   blocks -= blocks;
-            size = sub_convert(src, dst, max_input);
-            //std::cout << size << "\n";
-            dst += size;
+        {   step_size = sub_convert(src, dst, blocks);
             src += blocks * in_fmt.blockAlign;
+            blocks -= blocks;
         }
+
+        total_size += step_size;
+        dst += step_size;
     }
+
+    return total_size;
 }
 
 int FormatConverter::sub_convert(char* src, char* dst, size_t blocks)

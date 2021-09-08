@@ -9,7 +9,21 @@
 #include <audio-lib/sampling.h>
 #include <audio-lib/conversion.h>
 
-void getAudioClip(char* filename, char* &samples, int &size, WaveFmt &fmt)
+void putAudioClip(const char* filename, const char* samples, const int size, const WaveFmt fmt)
+{
+	WAVEHeader wav;
+
+	wav.subchunk2Size = size;
+	wav.wfmt = fmt;
+	wav.chunkSize = 4 + (8 + wav.subchunk1Size) + (8 + wav.subchunk2Size);
+
+	std::ofstream out(filename, std::ios::binary);
+	out.write((char*)&wav, sizeof(WAVEHeader));
+	out.write(samples, wav.subchunk2Size);
+	out.close();
+}
+
+void getAudioClip(const char* filename, char* &samples, int &size, WaveFmt &fmt)
 {
 	WAVEHeader wav;
 
@@ -35,40 +49,16 @@ int main()
 	getAudioClip("clip1.wav", clip1, size1, fmt1);
 	getAudioClip("clip2.wav", clip2, size2, fmt2);
 
-	aout.setFormat(_Stereo, _16Bit, _44kHz);
+	WaveFmt newFmt = makeWaveFmt(1,16,48000);
+	FormatConverter cnv(makeWaveFmt(2,16,44100), newFmt);
+	int newSize = size1 / fmt1.blockAlign * newFmt.blockAlign * cnv.L / cnv.M;
+	char* newClip1 = new char[newSize];
+	cnv.convert(clip1, newClip1, size1 / fmt1.blockAlign);
 
-	fmt1.bitsPerSample /= 2;
-	fmt1.byteRate /= 2;
-	fmt1.blockAlign /= 2;
-	size1 /= 2;
+	aout.setFormat(newFmt);
 
-	char* newClip = new char[size1];
-	bit_depth_16_to_8((short*)clip1, (unsigned char*)newClip, size1 / (fmt1.bitsPerSample/8));
-
-	fmt1.numChannels--;
-	fmt1.byteRate /= 2;
-	fmt1.blockAlign /= 2;
-	size1 /= 2;
-
-	char* newClip2 = new char[size1];
-	stereo_to_mono(newClip, newClip2, 8, size1 / fmt1.blockAlign);
-
-	mono_to_stereo(newClip2, newClip, 8, size1 / fmt1.blockAlign);
-
-	fmt1.numChannels++;
-	fmt1.byteRate *= 2;
-	fmt1.blockAlign *= 2;
-	size1 *= 2;
-
-	bit_depth_8_to_16((unsigned char*)newClip, (short*)clip1, size1 / (fmt1.bitsPerSample/8));
-
-	fmt1.bitsPerSample *= 2;
-	fmt1.byteRate *= 2;
-	fmt1.blockAlign *= 2;
-	size1 *= 2;
-
-	AudioSource* src1 = aout.createSource(fmt1, AS_FLAG_BUFFERED | AS_FLAG_LOOPED);
-	src1->add(clip1, size1 / fmt1.blockAlign, fmt1);
+	AudioSource* src1 = aout.createSource(newFmt, AS_FLAG_BUFFERED | AS_FLAG_LOOPED);
+	src1->add(newClip1, newSize / newFmt.blockAlign, newFmt);
 
 	//AudioSource* src1 = aout.createSource(fmt1, AS_FLAG_BUFFERED | AS_FLAG_LOOPED);
 	//src1->add(clip1, size1 / fmt1.blockAlign, fmt1);

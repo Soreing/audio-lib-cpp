@@ -37,7 +37,7 @@ public:
     FormatConverter(WaveFmt in, WaveFmt out);
     ~FormatConverter();
 
-    void convert(char* src, char* dst, size_t blocks);
+    int convert(char* src, char* dst, size_t blocks);
     int sub_convert(char* src, char* dst, size_t blocks);
 };
 
