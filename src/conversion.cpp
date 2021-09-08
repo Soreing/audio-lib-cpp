@@ -5,6 +5,56 @@
 #define MIN(a, b) a < b ? a : b
 #define MAX(a, b) a > b ? a : b
 
+// Converts the sample rate of a multi channel 8-bit audio stream
+// Returns the number of blocks extracted
+int convert_sample_rate(const uchar* src, uchar* dst, size_t blocks, RateConverter &cnv)
+{
+    int ret = 0;
+
+    if(cnv.L > 1 && cnv.M > 1)
+    {   for(size_t j = 0; j < cnv.num_channels; j++)
+        {   ret = cnv.non_integral((uchar*)src, (uchar*)dst, j, blocks);
+        }
+    }
+    else if(cnv.L > 1)
+    {   for(size_t j = 0; j < cnv.num_channels; j++)
+        {   ret = cnv.interpolation((uchar*)src, (uchar*)dst, j, blocks);
+        }
+    }
+    else if(cnv.M > 1)
+    {   for(size_t j = 0; j < cnv.num_channels; j++)
+        {   ret = cnv.decimation((uchar*)src, (uchar*)dst, j, blocks);
+        }
+    }
+
+    return ret;
+}
+
+// Converts the sample rate of a multi channel 16-bit audio stream
+// Returns the number of blocks extracted
+int convert_sample_rate(const short* src, short* dst, size_t blocks, RateConverter &cnv)
+{
+    int ret = 0;
+
+    if(cnv.L > 1 && cnv.M > 1)
+    {   for(size_t j = 0; j < cnv.num_channels; j++)
+        {   ret = cnv.non_integral((short*)src, (short*)dst, j, blocks);
+        }
+    }
+    else if(cnv.L > 1)
+    {   for(size_t j = 0; j < cnv.num_channels; j++)
+        {   ret = cnv.interpolation((short*)src, (short*)dst, j, blocks);
+        }
+    }
+    else if(cnv.M > 1)
+    {   for(size_t j = 0; j < cnv.num_channels; j++)
+        {   ret = cnv.decimation((short*)src, (short*)dst, j, blocks);
+        }
+    }
+
+    return ret;
+}
+
 // Moves the samples from unsigned to signed wave and scales it up
 void bit_depth_8_to_16(const unsigned char* src, short* dst, size_t samples)
 {
