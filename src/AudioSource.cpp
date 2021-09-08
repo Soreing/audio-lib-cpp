@@ -14,39 +14,71 @@ AudioSource::~AudioSource()
 }
 
 // Adds n blocks of data to the end of the Audio Source
-// One block of data depends on the channels, sampling freq. and sample size (nBlockAlign)
-// The data being added has the wave format "fmt" (converted to the fmt of the Audio Source)
+// The input is chopped into smaller units and converted to the
+// format of the Audio Source. both the original and the converted data
+// is kept, along with the original format of the data
 void AudioSource::add(const char* data, size_t blocks, const WaveFmt &fmt)
 {
-	size_t input_size, output_size, work_size;
-	char *tmp1, *tmp2;
-
-	input_size = fmt.blockAlign * blocks;
-	output_size = audio_fmt.blockAlign * blocks;
-	work_size = MAX(input_size, output_size);
-
-	if (head == NULL)
+	if(	conv.in_fmt.numChannels != fmt.numChannels ||
+		conv.in_fmt.bitsPerSample != fmt.bitsPerSample ||
+		conv.in_fmt.sampleRate != fmt.sampleRate)
 	{
-		head = new DataNode{ new char[output_size], blocks , NULL };
-		tail = head;
-		curr = head;
-	}
-	else
-	{
-		tail->next = new DataNode{ new char[output_size], blocks , NULL };
-		tail = tail->next;
+		// Re-Initialize Converter
 	}
 
-	if (audio_fmt.numChannels == fmt.numChannels &&
-		audio_fmt.sampleRate == fmt.sampleRate &&
-		audio_fmt.bitsPerSample == fmt.bitsPerSample)
+	int max_blocks_in = conv.max_input * MAX_NODE_UNITS;	
+	int max_blocks_out =  conv.max_output * MAX_NODE_UNITS ;
+	DataNode* this_node;
+
+	while(blocks > 0)
 	{
-		memcpy(tail->bytes, data, output_size);
-	}
-	else
-	{
-		//tmp1 = new char[work_size];
-		//tmp2 = new char[work_size];
+		this_node = new DataNode{
+			fmt.sampleRate,
+			fmt.numChannels,
+			fmt.bitsPerSample,
+			NULL, 0,
+			NULL, 0,
+			NULL
+		};
+
+		this_node->origin    = new char[max_blocks_in * conv.in_fmt.blockAlign];
+		this_node->orig_len  = max_blocks_in;
+		this_node->processed = new char[max_blocks_out * conv.out_fmt.blockAlign];
+
+		if(blocks > max_blocks_in)
+		{	
+			memcpy(this_node->origin, data, max_blocks_in * conv.in_fmt.blockAlign);
+
+			this_node->proc_len = conv.convert(
+				this_node->origin,
+				this_node->processed,
+				max_blocks_in
+			);
+
+			blocks -= max_blocks_in;
+		}
+		else
+		{
+			memcpy(this_node->origin, data, blocks * conv.in_fmt.blockAlign);
+
+			this_node->proc_len = conv.convert(
+				this_node->origin,
+				this_node->processed,
+				blocks
+			);
+
+			blocks -=blocks;
+		}
+
+		if (head == NULL)
+		{	head = this_node;
+			tail = head;
+			curr = head;
+		}
+		else
+		{	tail->next = this_node;
+			tail = tail->next;
+		}
 	}
 }
 

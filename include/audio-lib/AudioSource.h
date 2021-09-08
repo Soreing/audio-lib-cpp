@@ -9,31 +9,37 @@
 #define AS_FLAG_BUFFERED 2
 #define AS_FLAG_LOOPED   4
 
+#define MAX_NODE_UNITS 10
+
 #define MAX(a, b)  (a > b ? a : b)
 
 class AudioSource
 {
 	struct DataNode
-	{	char* origin;		// Bytes of the original data
-		size_t orig_len;	// Number of blocks in the original data
+	{	long  sample_rate;		// Sample Rate of the original data
+		short num_channels;		// Number of channels in the original data
+		short bit_depth;		// Bit Depth of the original data
 
-		char* processed;	// Bytes of converted data ready for use
-		size_t proc_len;	// Number of blocks in the processed data
+		char* origin;			// Bytes of the original data
+		size_t orig_len;		// Number of blocks in the original data
 
-		DataNode* next;		// Pointer to the next Node
+		char* processed;		// Bytes of converted data ready for use
+		size_t proc_len;		// Number of blocks in the processed data
+
+		DataNode* next;			// Pointer to the next Node
 	};
 
-	FormatConverter conv	// Format converter to convert input data
-	WaveFmt audio_fmt;		// Format of the Audio Source
+	FormatConverter conv;		// Format converter to convert input data
+	WaveFmt audio_fmt;			// Format of the Audio Source
 
-	DataNode* head;			// Start of the Audio Data
-	DataNode* tail;			// End of the Audio Data
-	DataNode* curr;			// Pointer to the current block of data
-	size_t    offset;		// Block Offset in the current block of Data
+	DataNode* head;				// Start of the Audio Data
+	DataNode* tail;				// End of the Audio Data
+	DataNode* curr;				// Pointer to the current block of data
+	size_t    offset;			// Block Offset in the current block of Data
 
-	bool empty_persist : 1;	// Audio Source should not be deleted if it reached the end
-	bool data_buffered : 1;	// Data is left in the buffer after taken (can be rewinded)
-	bool audio_looped : 1;	// Audio source is looped to play indefinitely
+	bool empty_persist : 1;		// Audio Source should not be deleted if it reached the end
+	bool data_buffered : 1;		// Data is left in the buffer after taken (can be rewinded)
+	bool audio_looped : 1;		// Audio source is looped to play indefinitely
 
 public:
 
@@ -42,8 +48,9 @@ public:
 	~AudioSource();
 
 	// Adds n blocks of data to the end of the Audio Source
-	// One block of data depends on the channels, sampling freq. and sample size (nBlockAlign)
-	// The data being added has the wave format "fmt" (converted to the fmt of the Audio Source)
+	// The input is chopped into smaller units and converted to the
+	// format of the Audio Source. both the original and the converted data
+	// is kept, along with the original format of the data
 	void add(const char* data, size_t blocks, const WaveFmt &fmt);
 
 	// Takes n blocks of data from the Audio Source across Data Nodes
