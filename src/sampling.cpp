@@ -5,37 +5,289 @@
 #define MODADD(n, v, m) n = (n + v) % m;
 #define MODSUB(n, v, m) n = (n - v) % m;
 
-RateConverter::RateConverter(size_t L, size_t M, size_t taps, size_t channels, size_t depth) :
-	L(L), M(M), num_channels(channels), bit_depth(depth),
-	inter_filter(taps, 1, L << 1), inter_delay_idx(0), inter_delay_lines(new void*[channels]),
-	decim_filter(taps, 1, M << 1), decim_delay_idx(0), decim_delay_lines(new void*[channels]),
-	decim_fraction(0)
+RateConverter::RateConverter() :
+	inter_delay_lines(0), inter_delay_idxs(0),
+	decim_delay_lines(0), decim_delay_idxs(0), decim_fractions(0)
 {
-	for (size_t i = 0; i < channels; i++)
-	{
-		inter_delay_lines[i] = new char[(bit_depth << 3) * taps / L];
-		decim_delay_lines[i] = new char[(bit_depth << 3) *taps];
-	}
+}
+
+RateConverter::RateConverter(size_t L, size_t M, size_t taps, size_t channels, size_t depth) :
+	inter_delay_lines(0), inter_delay_idxs(0),
+	decim_delay_lines(0), decim_delay_idxs(0), decim_fractions(0)
+{
+	init(L, M, taps, channels, depth);
 }
 
 RateConverter::~RateConverter()
 {
-	for (size_t i = 0; i < num_channels; i++)
-	{
-		delete[] inter_delay_lines[i];
-		delete[] decim_delay_lines[i];
-	}
-
-	delete[] inter_delay_lines;
-	delete[] decim_delay_lines;
+	clear();
 }
 
-void RateConverter::decimation_16(const short* src, short* dst, size_t channel, size_t samples)
+void RateConverter::init(size_t L, size_t M, size_t taps, size_t channels, size_t depth)
+{
+	this->L = L;
+	this->M = M;
+
+	this->num_channels = channels; 
+	this->bit_depth = depth;
+
+	inter_filter.init(taps, 1, L << 1);
+	inter_delay_lines = new void*[channels];
+
+	decim_filter.init(taps, 1, M << 1);
+	decim_delay_lines = new void*[channels];
+
+	inter_delay_idxs = new size_t[channels];
+	decim_delay_idxs = new size_t[channels];
+	decim_fractions  = new size_t[channels];
+
+	memset(inter_delay_idxs, 0, sizeof(size_t) * channels);
+	memset(decim_delay_idxs, 0, sizeof(size_t) * channels);
+	memset(decim_fractions,  0, sizeof(size_t) * channels);
+
+	for (size_t i = 0; i < channels; i++)
+	{	inter_delay_lines[i] = new char[(bit_depth << 3) * taps / L];
+		decim_delay_lines[i] = new char[(bit_depth << 3) * taps];
+
+		memset(inter_delay_lines[i], bit_depth == 8 ? 0x80 : 0, (bit_depth << 3) * taps / L);
+		memset(decim_delay_lines[i], bit_depth == 8 ? 0x80 : 0, (bit_depth << 3) * taps);
+	}
+}
+
+void RateConverter::clear()
+{
+	if(inter_delay_lines != 0)
+	{
+		for (size_t i = 0; i < num_channels; i++)
+		{	delete[] inter_delay_lines[i];
+		}
+		delete[] inter_delay_lines;
+	}
+
+	if(decim_delay_lines != 0)
+	{
+		for (size_t i = 0; i < num_channels; i++)
+		{	delete[] decim_delay_lines[i];
+		}
+		delete[] decim_delay_lines;
+	}
+
+	if(inter_delay_idxs != 0) { delete[] inter_delay_idxs; }
+	if(decim_delay_idxs != 0) { delete[] decim_delay_idxs; }
+	if(decim_fractions != 0)  { delete[] decim_fractions; }
+}
+
+int RateConverter::decimation(const uchar* src, uchar* dst, size_t channel, size_t samples)
 {
 	llong tmpVal;
-	int m, n;
+	int m, n, count=0;
 
+	size_t decim_fraction = decim_fractions[channel];
+	size_t decim_delay_idx = decim_delay_idxs[channel];
+	uchar* decim_delay_line = (uchar*)decim_delay_lines[channel];
+
+	src += channel;	// Ptr of next sample in the source (current channel)
+	dst += channel;	// Ptr of next sample in the destination (current channel)
+
+	for (size_t i = 0; i < samples; i++)
+	{
+		// Add one sample to the delay line
+		decim_delay_line[decim_delay_idx] = *src;
+		src += num_channels;
+		MODINC(decim_delay_idx, decim_filter.size);
+		MODINC(decim_fraction, M);
+
+		// If enough samples have been added from the source to the delay line, 
+		// derive one sample and add it to the destination pointer
+		if (decim_fraction == 0)
+		{
+			tmpVal = 0;
+			m = decim_delay_idx;
+			n = decim_delay_idx;
+			MODDEC(n, decim_filter.size);
+
+			// Perform convolution between impulse response coefficients from the filter
+			// and the delay line sample values at the symmetric ends of the response
+			for (size_t k = 0; k < (decim_filter.size >> 1); k++)
+			{
+				tmpVal += decim_filter.coefs[k] * ((llong)decim_delay_line[m] + (llong)decim_delay_line[n]);
+				MODINC(m, decim_filter.size);
+				MODDEC(n, decim_filter.size);
+			}
+
+			// If the delay line in odd, the middle value is added separately
+			if (decim_filter.size & 1)
+			{
+				tmpVal += decim_filter.coefs[decim_filter.size >> 1] * decim_delay_line[n];
+			}
+
+			// Divide the accumulator with the scale of the filter
+			*dst = (uchar)(tmpVal >> 32);
+			dst += num_channels;
+			count++;
+		}
+	}
+
+	decim_fractions[channel]  = decim_fraction;
+	decim_delay_idxs[channel] = decim_delay_idx;
+	return count;
+}
+
+int RateConverter::interpolation(const uchar* src, uchar* dst, size_t channel, size_t samples)
+{
+	size_t delay_size = inter_filter.size / L;				// Size of the delay line adjusted for interpolation
+	size_t start_coef = ((inter_filter.size >> 1) + 1) % L;	// Coefficient index offset of the first sample
+	size_t coef_idx   = start_coef;							// Index offset of the coefficients to use
+
+	llong  tmpVal;
+	int n, h, count=0;
+
+	size_t inter_delay_idx = inter_delay_idxs[channel];
+	uchar* inter_delay_line = (uchar*)inter_delay_lines[channel];
+
+	src += channel;	// Ptr of next sample in the source (current channel)
+	dst += channel;	// Ptr of next sample in the destination (current channel)
+
+	for (size_t i = 0; i < samples; i++)
+	{
+		// Add next samples to the delay line
+		inter_delay_line[inter_delay_idx] = *(src);
+		src += num_channels;
+		MODINC(inter_delay_idx, delay_size);
+
+		// Calculate L-1 and the real sample with a lowpass filter
+		for (size_t j = 0; j < L; j++)
+		{
+			tmpVal = 0;
+			n = inter_delay_idx;
+			h = coef_idx;
+
+			// Perform convolution between impulse response coefficients from the filter
+			// and the delay line sample values to interpolate the zero samples
+			// The coefficients are multiplied by the factor to add gain
+			for (size_t k = 0; k < delay_size; k++)
+			{
+				tmpVal += inter_filter.coefs[h] * L * inter_delay_line[n];
+				MODINC(n, delay_size);
+				h += L;
+			}
+
+			// Add next sample from the accumulator to the destination
+			// Divide the accumulator with the scale of the filter
+			*dst = (uchar)(tmpVal >> 32);
+			dst += num_channels;
+			count++;
+			MODINC(coef_idx, L);
+		}
+	}
+
+	inter_delay_idxs[channel] = inter_delay_idx;
+	return count;
+}
+
+int RateConverter::non_integral(const uchar* src, uchar* dst, size_t channel, size_t samples)
+{
+	size_t inter_size = inter_filter.size / L;				// Size of the delay line adjusted for interpolation
+	size_t start_coef = ((inter_filter.size >> 1) + 1) % L;	// Coefficient index offset of the first sample
+	size_t coef_idx = start_coef;							// Index offset of the coefficients to use
+
+	llong tmpVal;
+	int m, n, h, count=0;
+
+	size_t decim_fraction = decim_fractions[channel];
+	size_t decim_delay_idx = decim_delay_idxs[channel];
+	uchar* decim_delay_line = (uchar*)decim_delay_lines[channel];
+
+	size_t inter_delay_idx = inter_delay_idxs[channel];
+	uchar* inter_delay_line = (uchar*)inter_delay_lines[channel];
+
+	src += channel;	// Ptr of next sample in the source (current channel)
+	dst += channel;	// Ptr of next sample in the destination (current channel)
+
+	for (size_t i = 0;;)
+	{
+		// Calculate L-1 and the real sample with a lowpass filter
+		for (size_t j = decim_fraction; j < M; j++)
+		{
+			// Add new sample if the previous has been fully interpolated
+			if (coef_idx == start_coef)
+			{
+				// If the samples ended, quit the function
+				if (i == samples)
+				{	
+					decim_fractions[channel]  = decim_fraction;
+					decim_delay_idxs[channel] = decim_delay_idx;
+					inter_delay_idxs[channel] = inter_delay_idx;
+					return count;
+				}
+
+				inter_delay_line[inter_delay_idx] = *src;
+				MODINC(inter_delay_idx, inter_size);
+				src += num_channels;
+				i++;
+			}
+
+			tmpVal = 0;
+			n = inter_delay_idx;
+			h = coef_idx;
+
+			// Perform convolution between impulse response coefficients from the filter
+			// and the delay line sample values to interpolate the zero samples
+			// The coefficients are multiplied by the factor to add gain
+			for (size_t k = 0; k < inter_size; k++)
+			{
+				tmpVal += inter_filter.coefs[h] * L * inter_delay_line[n];
+				MODINC(n, inter_size);
+				h += L;
+			}
+
+			// Add next sample from the accumulator to the destination
+			// Divide the accumulator with the scale of the filter
+			decim_delay_line[decim_delay_idx] = (uchar)(tmpVal >> 32);
+			MODINC(decim_delay_idx, decim_filter.size);
+			MODINC(decim_fraction, M);
+			MODINC(coef_idx, L);
+		}
+
+		tmpVal = 0;
+		m = decim_delay_idx;
+		n = decim_delay_idx;
+		MODDEC(n, decim_filter.size);
+
+		// Perform convolution between impulse response coefficients from the filter
+		// and the delay line sample values at the symmetric ends of the response
+		for (size_t k = 0; k < (decim_filter.size >> 1); k++)
+		{
+			tmpVal += decim_filter.coefs[k] * ((llong)decim_delay_line[m] + (llong)decim_delay_line[n]);
+			MODINC(m, decim_filter.size);
+			MODDEC(n, decim_filter.size);
+		}
+
+		// If the delay line in odd, the middle value is added separately
+		if (decim_filter.size & 1)
+		{
+			tmpVal += decim_filter.coefs[decim_filter.size >> 1] * decim_delay_line[n];
+		}
+
+		// Divide the accumulator with the scale of the filter
+		*dst = (uchar)(tmpVal >> 32);
+		dst += num_channels;
+		count++;
+	}
+
+	return 0;
+}
+
+
+int RateConverter::decimation(const short* src, short* dst, size_t channel, size_t samples)
+{
+	llong tmpVal;
+	int m, n, count=0;
+
+	size_t decim_fraction = decim_fractions[channel];
+	size_t decim_delay_idx = decim_delay_idxs[channel];
 	short* decim_delay_line = (short*)decim_delay_lines[channel];
+
 	src += channel;	// Ptr of next sample in the source (current channel)
 	dst += channel;	// Ptr of next sample in the destination (current channel)
 
@@ -74,20 +326,27 @@ void RateConverter::decimation_16(const short* src, short* dst, size_t channel, 
 			// Divide the accumulator with the scale of the filter
 			*dst = (short)(tmpVal >> 32);
 			dst += num_channels;
+			count++;
 		}
 	}
+
+	decim_fractions[channel]  = decim_fraction;
+	decim_delay_idxs[channel] = decim_delay_idx;
+	return count;
 }
 
-void RateConverter::interpolation_16(const short* src, short* dst, size_t channel, size_t samples)
+int RateConverter::interpolation(const short* src, short* dst, size_t channel, size_t samples)
 {
 	size_t delay_size = inter_filter.size / L;				// Size of the delay line adjusted for interpolation
 	size_t start_coef = ((inter_filter.size >> 1) + 1) % L;	// Coefficient index offset of the first sample
 	size_t coef_idx   = start_coef;							// Index offset of the coefficients to use
 
 	llong  tmpVal;
-	int n, h;
+	int n, h, count=0;
 
+	size_t inter_delay_idx = inter_delay_idxs[channel];
 	short* inter_delay_line = (short*)inter_delay_lines[channel];
+
 	src += channel;	// Ptr of next sample in the source (current channel)
 	dst += channel;	// Ptr of next sample in the destination (current channel)
 
@@ -119,22 +378,32 @@ void RateConverter::interpolation_16(const short* src, short* dst, size_t channe
 			// Divide the accumulator with the scale of the filter
 			*dst = (short)(tmpVal >> 32);
 			dst += num_channels;
+			count++;
 			MODINC(coef_idx, L);
 		}
 	}
+
+	inter_delay_idxs[channel] = inter_delay_idx;
+	return count;
 }
 
-void RateConverter::non_integral_16(const short* src, short* dst, size_t channel, size_t samples)
+int RateConverter::non_integral(const short* src, short* dst, size_t channel, size_t samples)
 {
+ 
 	size_t inter_size = inter_filter.size / L;				// Size of the delay line adjusted for interpolation
 	size_t start_coef = ((inter_filter.size >> 1) + 1) % L;	// Coefficient index offset of the first sample
 	size_t coef_idx = start_coef;							// Index offset of the coefficients to use
 
 	llong tmpVal;
-	int m, n, h;
+	int m, n, h, count=0;
 
-	short* inter_delay_line = (short*)inter_delay_lines[channel];
+	size_t decim_fraction = decim_fractions[channel];
+	size_t decim_delay_idx = decim_delay_idxs[channel];
 	short* decim_delay_line = (short*)decim_delay_lines[channel];
+
+	size_t inter_delay_idx = inter_delay_idxs[channel];
+	short* inter_delay_line = (short*)inter_delay_lines[channel];
+
 	src += channel;	// Ptr of next sample in the source (current channel)
 	dst += channel;	// Ptr of next sample in the destination (current channel)
 
@@ -147,9 +416,13 @@ void RateConverter::non_integral_16(const short* src, short* dst, size_t channel
 			if (coef_idx == start_coef)
 			{
 				// If the samples ended, quit the function
-				if (i == samples - 1)
-				{
-					return;
+				if (i == samples)
+				{	
+					decim_fractions[channel]  = decim_fraction;
+					decim_delay_idxs[channel] = decim_delay_idx;
+					inter_delay_idxs[channel] = inter_delay_idx;
+					
+					return count;
 				}
 
 				inter_delay_line[inter_delay_idx] = *src;
@@ -200,8 +473,12 @@ void RateConverter::non_integral_16(const short* src, short* dst, size_t channel
 			tmpVal += decim_filter.coefs[decim_filter.size >> 1] * decim_delay_line[n];
 		}
 
+
 		// Divide the accumulator with the scale of the filter
 		*dst = (short)(tmpVal >> 32);
 		dst += num_channels;
+		count++;
 	}
+
+	return 0;
 }
