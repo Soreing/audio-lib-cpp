@@ -24,6 +24,7 @@ RateConverter::~RateConverter()
 	clear();
 }
 
+// Initializes the filters and buffers for the converter
 void RateConverter::init(size_t L, size_t M, size_t taps, size_t channels, size_t depth)
 {
 	this->L = L;
@@ -55,6 +56,7 @@ void RateConverter::init(size_t L, size_t M, size_t taps, size_t channels, size_
 	}
 }
 
+// Deallocates all dynamic resources
 void RateConverter::clear()
 {
 	if(inter_delay_lines != 0)
@@ -78,6 +80,7 @@ void RateConverter::clear()
 	if(decim_fractions != 0)  { delete[] decim_fractions; }
 }
 
+// Decimation of n 8-Bit "samples" from src to dst in a wave with some "channels"
 int RateConverter::decimation(const uchar* src, uchar* dst, size_t channel, size_t samples)
 {
 	llong tmpVal;
@@ -134,6 +137,7 @@ int RateConverter::decimation(const uchar* src, uchar* dst, size_t channel, size
 	return count;
 }
 
+// Interpolation of n 8-Bit "samples" from src to dst in a wave with some "channels"
 int RateConverter::interpolation(const uchar* src, uchar* dst, size_t channel, size_t samples)
 {
 	size_t delay_size = inter_filter.size / L;				// Size of the delay line adjusted for interpolation
@@ -186,6 +190,7 @@ int RateConverter::interpolation(const uchar* src, uchar* dst, size_t channel, s
 	return count;
 }
 
+// Interpolation and Decimation of n 8-Bit "samples" from src to dst in a wave with some "channels"
 int RateConverter::non_integral(const uchar* src, uchar* dst, size_t channel, size_t samples)
 {
 	size_t inter_size = inter_filter.size / L;				// Size of the delay line adjusted for interpolation
@@ -280,6 +285,7 @@ int RateConverter::non_integral(const uchar* src, uchar* dst, size_t channel, si
 }
 
 
+// Decimation of n 16-Bit "samples" from src to dst in a wave with some "channels"
 int RateConverter::decimation(const short* src, short* dst, size_t channel, size_t samples)
 {
 	llong tmpVal;
@@ -336,6 +342,7 @@ int RateConverter::decimation(const short* src, short* dst, size_t channel, size
 	return count;
 }
 
+// Interpolation of n 16-Bit "samples" from src to dst in a wave with some "channels"
 int RateConverter::interpolation(const short* src, short* dst, size_t channel, size_t samples)
 {
 	size_t delay_size = inter_filter.size / L;				// Size of the delay line adjusted for interpolation
@@ -388,6 +395,7 @@ int RateConverter::interpolation(const short* src, short* dst, size_t channel, s
 	return count;
 }
 
+// Interpolation and Decimation of n 16-Bit "samples" from src to dst in a wave with some "channels"
 int RateConverter::non_integral(const short* src, short* dst, size_t channel, size_t samples)
 {
  

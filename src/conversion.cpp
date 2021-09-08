@@ -91,6 +91,7 @@ FormatConverter::FormatConverter(WaveFmt in, WaveFmt out) :
     }
 }
 
+// Deallocates any dynamic arrays that were created
 FormatConverter::~FormatConverter()
 {
     if(channel_ptr != NULL)
@@ -112,6 +113,8 @@ FormatConverter::~FormatConverter()
     }
 }
 
+// Breaks down the conversion of a larger wave to smaller steps
+// Returns the number of blocks that resulted from the conversion
 int FormatConverter::convert(char* src, char* dst, size_t blocks)
 {
     int step_size  = 0;
@@ -137,6 +140,9 @@ int FormatConverter::convert(char* src, char* dst, size_t blocks)
     return total_size;
 }
 
+// Converts a wave to another format, which can include different
+// number of channels, nit depth or sampling rate increase or decrease
+// Returns the number of blocks that resulted from the conversion
 int FormatConverter::sub_convert(char* src, char* dst, size_t blocks)
 {
     char *channel_res, *depth_res, *rate_res;
@@ -264,7 +270,7 @@ int convert_sample_rate(const short* src, short* dst, size_t blocks, RateConvert
     return ret;
 }
 
-// Moves the samples from unsigned to signed wave and scales it up
+// Moves the samples from unsigned 8-bit to signed 16-bit wave and scales it up
 void bit_depth_8_to_16(const unsigned char* src, short* dst, size_t samples)
 {
     for(size_t i = 0; i < samples; i++)
@@ -380,6 +386,9 @@ void remove_common_factors(factor* L_factors, const int L_size, factor* M_factor
 	}
 }
 
+// Optimizes the scaling factors L/M bteween two sampling rates so
+// the wave doesn't suffer quality loss during conversion and the
+// conversion is performed as fast as possible with minimized memory usage
 void optimize_scaling_factors(scale* scales, int &S_size, factor* L_factors, int L_size, factor* M_factors, int M_size)
 {
 	size_t L_product=1;

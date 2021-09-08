@@ -31,6 +31,8 @@ FIRFilter_i64::~FIRFilter_i64()
 	}
 }
 
+// Creates a low pass filter with "taps" number of coefficients
+// Each coefficient is a 2^32 scaled up 64-bit integer value
 void FIRFilter_i64::init(int taps, int stop_freq, int sample_freq)
 {
 	if(coefs != NULL)
