@@ -1,9 +1,115 @@
 #include <audio-lib/conversion.h>
 #include <audio-lib/primes.h>
-#include <iostream>
+#include <string.h>
+#include <math.h>
 
 #define MIN(a, b) a < b ? a : b
 #define MAX(a, b) a > b ? a : b
+
+FormatConverter::FormatConverter(WaveFmt in, WaveFmt out) :
+    in_fmt(in), out_fmt(out), sub_steps(NULL), sub_buffers(NULL),
+    channel_ptr(NULL), depth_ptr(NULL), rate_ptr(NULL)
+{
+    // Maximum number of blocks processed by a converter
+    max_input  = in.sampleRate/100;
+    max_output = out.sampleRate/100;
+    if(in.sampleRate % 100 != 0)
+    {   max_input++;
+        max_output++;
+    }
+
+    L = 1;  // Interpolation factor
+    M = 1;  // Decimation factor
+
+    // Allocate space for the channel conversion's output
+    if(in_fmt.numChannels != out_fmt.numChannels)
+    {   channel_ptr = new char[max_input * in_fmt.bitsPerSample/8 * out_fmt.numChannels ];
+    }
+
+    // Allocate space for the bit depth conversion's output
+    if(in_fmt.bitsPerSample != out_fmt.bitsPerSample)
+    {   depth_ptr = new char[max_input * out_fmt.byteRate];
+    }
+
+    // Set up Sample Rate Converters
+    if(in_fmt.sampleRate != out_fmt.sampleRate)
+    {   
+        // Factorizing the input sample rate and the output sample rate,
+        // Then dropping common factors to get a L/M fraction for conversion
+        int in_fsize = get_prime_factors(in.sampleRate, 0);
+        factor* in_factors = new factor[in_fsize];
+        get_prime_factors(in.sampleRate, in_factors);
+
+        int out_fsize = get_prime_factors(out.sampleRate, 0);
+        factor* out_factors = new factor[out_fsize];
+        get_prime_factors(out.sampleRate, out_factors);
+
+        remove_common_factors(out_factors, out_fsize, in_factors, in_fsize);
+
+        // Get the total number of factors to set the size of sub steps
+        // The maximum number of sub steps can't exceed the number of factors
+        int in_fcount  = 0;
+        for(int i = 0; i < in_fsize; i++)
+        {   M *= (int)pow(in_factors[i].value, in_factors[i].count);
+            in_fcount += in_factors[i].count;
+        }
+
+        int out_fcount  = 0;
+        for(int i = 0; i < out_fsize; i++)
+        {   L *= (int)pow(out_factors[i].value, out_factors[i].count);
+            out_fcount += out_factors[i].count;
+        }
+
+        step_count = MAX(in_fcount, out_fcount);
+        scale* pairs = new scale[step_count];
+
+        // Generate the series of L/M fractions to covnert the sampling rate
+        // Create a series or Rate Converters to handle the conversion
+        optimize_scaling_factors(pairs, step_count, out_factors, out_fsize, in_factors, in_fsize);
+        sub_steps   = new RateConverter[step_count];
+        sub_buffers = new char*[step_count];
+
+        int tap_count;
+        int buffer_size = max_input;
+        for(int i = 0; i < step_count; i++)
+        {   
+            tap_count = (pairs[i].M * 12) | 1;
+            sub_steps[i].init(pairs[i].L, pairs[i].M, tap_count, out_fmt.numChannels, out_fmt.bitsPerSample);
+            
+            buffer_size = (buffer_size * pairs[i].L / pairs[i].M) + 1;
+            sub_buffers[i] = new char[buffer_size * out_fmt.blockAlign];
+            memset(sub_buffers[i], 0, buffer_size * out_fmt.blockAlign);
+        }
+
+        max_output = buffer_size;
+        rate_ptr = new char[max_output * out_fmt.byteRate];
+
+        delete[] in_factors;
+        delete[] out_factors;
+        delete[] pairs;
+    }
+}
+
+FormatConverter::~FormatConverter()
+{
+    if(channel_ptr != NULL)
+    {   delete[] channel_ptr;
+    }
+
+    if(depth_ptr != NULL)
+    {   delete[] depth_ptr;
+    }
+
+    if(rate_ptr != NULL)
+    {   for(int i = 0; i < step_count; i++)
+        {   delete[] sub_buffers[i];
+        }
+
+        delete[] rate_ptr;
+        delete[] sub_steps;
+        delete[] sub_buffers;
+    }
+}
 
 // Converts the sample rate of a multi channel 8-bit audio stream
 // Returns the number of blocks extracted

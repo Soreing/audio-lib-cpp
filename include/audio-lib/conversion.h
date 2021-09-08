@@ -33,6 +33,9 @@ public:
     int step_count;
     RateConverter* sub_steps;
     char** sub_buffers;
+
+    FormatConverter(WaveFmt in, WaveFmt out);
+    ~FormatConverter();
 };
 
 int convert_sample_rate(const unsigned char* src, unsigned char* dst, size_t blocks, RateConverter &conv);
