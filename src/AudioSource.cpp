@@ -27,7 +27,8 @@ void AudioSource::add(const char* data, size_t blocks, const WaveFmt &fmt)
 	}
 
 	int max_blocks_in = conv.max_input * MAX_NODE_UNITS;	
-	int max_blocks_out =  conv.max_output * MAX_NODE_UNITS ;
+	int max_blocks_out =  conv.max_output * MAX_NODE_UNITS;
+	char* src = (char*)data;
 	DataNode* this_node;
 
 	while(blocks > 0)
@@ -47,7 +48,7 @@ void AudioSource::add(const char* data, size_t blocks, const WaveFmt &fmt)
 
 		if(blocks > max_blocks_in)
 		{	
-			memcpy(this_node->origin, data, max_blocks_in * conv.in_fmt.blockAlign);
+			memcpy(this_node->origin, src, max_blocks_in * conv.in_fmt.blockAlign);
 
 			this_node->proc_len = conv.convert(
 				this_node->origin,
@@ -55,11 +56,12 @@ void AudioSource::add(const char* data, size_t blocks, const WaveFmt &fmt)
 				max_blocks_in
 			);
 
+			src += max_blocks_in * conv.in_fmt.blockAlign;
 			blocks -= max_blocks_in;
 		}
 		else
 		{
-			memcpy(this_node->origin, data, blocks * conv.in_fmt.blockAlign);
+			memcpy(this_node->origin, src, blocks * conv.in_fmt.blockAlign);
 
 			this_node->proc_len = conv.convert(
 				this_node->origin,
@@ -67,7 +69,8 @@ void AudioSource::add(const char* data, size_t blocks, const WaveFmt &fmt)
 				blocks
 			);
 
-			blocks -=blocks;
+			src += blocks * conv.in_fmt.blockAlign;
+			blocks -= blocks;
 		}
 
 		if (head == NULL)
@@ -184,7 +187,8 @@ void AudioSource::clear()
 	while (tmp != NULL)
 	{
 		nxt = tmp->next;
-		delete[] tmp->bytes;
+		delete[] tmp->origin;
+		delete[] tmp->processed;
 		delete tmp;
 		tmp = nxt;
 	}
