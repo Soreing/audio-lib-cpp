@@ -26,10 +26,18 @@ void AudioSource::add(const char* data, size_t blocks, const WaveFmt &fmt)
 		// Re-Initialize Converter
 	}
 
-	int max_blocks_in = conv.max_input * MAX_NODE_UNITS;	
-	int max_blocks_out =  conv.max_output * MAX_NODE_UNITS;
+	int max_blocks_in  = conv.max_input * MAX_NODE_UNITS;	
+	int max_blocks_out = conv.max_output * MAX_NODE_UNITS;
 	char* src = (char*)data;
+	bool matching_format =  false;
 	DataNode* this_node;
+
+	if(	audio_fmt.numChannels != fmt.numChannels ||
+		audio_fmt.bitsPerSample != fmt.bitsPerSample ||
+		audio_fmt.sampleRate != fmt.sampleRate)
+	{
+		matching_format = true;
+	}
 
 	while(blocks > 0)
 	{
@@ -43,31 +51,44 @@ void AudioSource::add(const char* data, size_t blocks, const WaveFmt &fmt)
 		};
 
 		this_node->origin    = new char[max_blocks_in * conv.in_fmt.blockAlign];
-		this_node->orig_len  = max_blocks_in;
 		this_node->processed = new char[max_blocks_out * conv.out_fmt.blockAlign];
 
 		if(blocks > max_blocks_in)
 		{	
+			this_node->orig_len  = max_blocks_in;
 			memcpy(this_node->origin, src, max_blocks_in * conv.in_fmt.blockAlign);
 
-			this_node->proc_len = conv.convert(
-				this_node->origin,
-				this_node->processed,
-				max_blocks_in
-			);
+			if(matching_format)
+			{	this_node->proc_len  = max_blocks_in;
+				memcpy(this_node->processed, src, max_blocks_in * conv.in_fmt.blockAlign);
+			}
+			else
+			{	this_node->proc_len = conv.convert(
+					this_node->origin,
+					this_node->processed,
+					max_blocks_in
+				);
+			}
 
 			src += max_blocks_in * conv.in_fmt.blockAlign;
 			blocks -= max_blocks_in;
 		}
 		else
 		{
+			this_node->orig_len  = blocks;
 			memcpy(this_node->origin, src, blocks * conv.in_fmt.blockAlign);
 
-			this_node->proc_len = conv.convert(
-				this_node->origin,
-				this_node->processed,
-				blocks
-			);
+			if(matching_format)
+			{	this_node->proc_len  = blocks;
+				memcpy(this_node->processed, src, blocks * conv.in_fmt.blockAlign);
+			}
+			else
+			{	this_node->proc_len = conv.convert(
+					this_node->origin,
+					this_node->processed,
+					blocks
+				);
+			}
 
 			src += blocks * conv.in_fmt.blockAlign;
 			blocks -= blocks;
