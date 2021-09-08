@@ -111,6 +111,105 @@ FormatConverter::~FormatConverter()
     }
 }
 
+void FormatConverter::convert(char* src, char* dst, size_t blocks)
+{
+    int size = 0;
+    while(blocks > 0)
+    {
+        if((int)blocks > max_input)
+        {   blocks -= max_input;
+            size = sub_convert(src, dst, max_input);
+            //std::cout << size << "\n";
+            dst += size;
+            src += max_input * in_fmt.blockAlign;
+        }
+        else
+        {   blocks -= blocks;
+            size = sub_convert(src, dst, max_input);
+            //std::cout << size << "\n";
+            dst += size;
+            src += blocks * in_fmt.blockAlign;
+        }
+    }
+}
+
+int FormatConverter::sub_convert(char* src, char* dst, size_t blocks)
+{
+    char *channel_res, *depth_res, *rate_res;
+    int output_blocks = blocks;
+
+    // Change channel count if there is a mismatch
+    if( in_fmt.numChannels != out_fmt.numChannels)
+    {
+        channel_res = channel_ptr;
+        if(in_fmt.numChannels == 1)
+        {   mono_to_stereo((char*)src, (char*)channel_res, in_fmt.bitsPerSample, blocks);
+        }
+        else if(in_fmt.numChannels == 2)
+        {   stereo_to_mono((char*)src, (char*)channel_res, in_fmt.bitsPerSample, blocks);
+        }
+    }
+    else
+    {   channel_res = src;
+    }
+
+    // Change bit depth if there is a mismatch
+    if( in_fmt.bitsPerSample != out_fmt.bitsPerSample)
+    {
+        depth_res = depth_ptr;
+        if(in_fmt.bitsPerSample == 8)
+        {   bit_depth_8_to_16((unsigned char*)channel_res, (short*)depth_res, blocks * out_fmt.numChannels);
+        }
+        else if(in_fmt.bitsPerSample == 16)
+        {   bit_depth_16_to_8((short*)channel_res, (unsigned char*)depth_res, blocks * out_fmt.numChannels);
+        }
+    }
+    else
+    {   depth_res = channel_res;
+    }
+
+    // Change Sampling Frequency if there is a mismatch
+    if( in_fmt.sampleRate != out_fmt.sampleRate)
+    {
+        char* sub_src;
+        char* sub_dst = depth_res;
+
+        for(int i = 0; i < step_count; i++)
+        {
+            sub_src = sub_dst;
+            sub_dst = sub_buffers[i];
+
+            switch(out_fmt.bitsPerSample)
+            {   case 8:
+                    output_blocks = convert_sample_rate(
+                        (unsigned char*)sub_src, 
+                        (unsigned char*)sub_dst, 
+                        output_blocks, 
+                        sub_steps[i]
+                    );
+                    break;
+                case 16:
+                    output_blocks = convert_sample_rate(
+                        (short*)sub_src, 
+                        (short*)sub_dst, 
+                        output_blocks, 
+                        sub_steps[i]
+                    );
+                    break;
+            }
+        }
+
+        rate_res = sub_dst;
+    }
+    else
+    {
+        rate_res = depth_res;
+    }
+
+    memcpy(dst, rate_res, output_blocks * out_fmt.blockAlign);
+    return output_blocks * out_fmt.blockAlign;
+}
+
 // Converts the sample rate of a multi channel 8-bit audio stream
 // Returns the number of blocks extracted
 int convert_sample_rate(const uchar* src, uchar* dst, size_t blocks, RateConverter &cnv)

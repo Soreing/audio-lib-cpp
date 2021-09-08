@@ -1,4 +1,5 @@
 #include <audio-lib/sampling.h>
+#include <string.h>
 
 #define MODINC(n, m) n = n == m-1 ? 0 : n+1;
 #define MODDEC(n, m) n = n == 0 ? m-1 : n-1;
