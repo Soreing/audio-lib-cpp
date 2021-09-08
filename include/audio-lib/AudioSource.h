@@ -54,13 +54,17 @@ public:
 	void add(const char* data, size_t blocks, const WaveFmt &fmt);
 
 	// Takes n blocks of data from the Audio Source across Data Nodes
-	// One block of data depends on the channels, sampling freq. and sample size
-	// The requested wave format provided in "fmt" (conversion applies)
-	void take(char* buff, size_t blocks, const WaveFmt &fmt);
+	// If the Source ran out of data, 0s are returned. If the format of the
+	// next node is different, the Source is paused and 0s are returned
+	void take(char* buff, size_t blocks);
 
 	// Clears the data from the Audio Source
 	// Deallocates all resources and resets pointers
 	void clear();
+
+	// Removes the nodes of of audio data up till the current current 
+	// if the source is not buffered. If empty, tail is set to NULL
+	void remove();
 
 	// Rewinds the data to the beginning
 	// Only has an effect if the data is buffered

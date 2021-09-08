@@ -87,22 +87,14 @@ void AudioSource::add(const char* data, size_t blocks, const WaveFmt &fmt)
 
 
 // Takes n blocks of data from the Audio Source across Data Nodes
-// One block of data depends on the channels, sampling freq. and sample size
-// The requested wave format provided in "fmt" (conversion applies)
-void AudioSource::take(char* buff, size_t blocks, const WaveFmt &fmt)
+// If the Source ran out of data, 0s are returned. If the format of the
+// next node is different, the Source is paused and 0s are returned
+void AudioSource::take(char* buff, size_t blocks)
 {
-	size_t input_size, output_size, work_size, copy_amount;
+	size_t copy_amount;
 	char *copy_from, *copy_to;
-	char *tmp1, *tmp2;
 
-	input_size = audio_fmt.blockAlign * blocks;
-	output_size = fmt.blockAlign * blocks;
-	work_size = MAX(input_size, output_size);
-
-	tmp1 = new char[work_size];
-	copy_to = tmp1;
-
-	for (copy_to = tmp1; blocks > 0; copy_to += copy_amount)
+	for (copy_to = buff; blocks > 0; copy_to += copy_amount)
 	{
 		// Case where there is no more data
 		if (curr == NULL)
@@ -111,10 +103,20 @@ void AudioSource::take(char* buff, size_t blocks, const WaveFmt &fmt)
 			memset(copy_to, 0, copy_amount);
 			blocks = 0;
 		}
-		// Case where this is the last data block needed
-		else if (curr->length - offset > blocks)
+		// Case where the next data's format hasn't been converted yet
+		else if (
+			audio_fmt.numChannels   !=  curr->num_channels ||
+			audio_fmt.bitsPerSample !=  curr->bit_depth    ||
+			audio_fmt.sampleRate    !=  curr->sample_rate )
 		{
-			copy_from = curr->bytes + offset * audio_fmt.blockAlign;
+			copy_amount = blocks * audio_fmt.blockAlign;
+			memset(copy_to, 0, copy_amount);
+			blocks = 0;
+		}
+		// Case where this is the last data block needed
+		else if (curr->proc_len - offset > blocks)
+		{
+			copy_from = curr->processed + offset * audio_fmt.blockAlign;
 			copy_amount = blocks * audio_fmt.blockAlign;
 			memcpy(copy_to, copy_from, copy_amount);
 
@@ -124,57 +126,25 @@ void AudioSource::take(char* buff, size_t blocks, const WaveFmt &fmt)
 		// Case where the data block is fully consumed
 		else
 		{
-			copy_from = curr->bytes + offset * audio_fmt.blockAlign;
-			copy_amount = (curr->length - offset) * audio_fmt.blockAlign;
+			copy_from = curr->processed + offset * audio_fmt.blockAlign;
+			copy_amount = (curr->proc_len - offset) * audio_fmt.blockAlign;
 			memcpy(copy_to, copy_from, copy_amount);
 
-			blocks -= (curr->length - offset);
+			blocks -= (curr->proc_len - offset);
 			curr = curr->next;
 			offset = 0;
 
 			// Delete the block if the Audio Source is not buffered
 			if (!data_buffered)
-			{
-				DataNode* tmp = head;
-				DataNode* nxt = NULL;
-
-				while (tmp != curr)
-				{
-					nxt = tmp->next;
-					delete[] tmp->bytes;
-					delete tmp;
-					tmp = nxt;
-				}
-
-				head = curr;
-				if (head == NULL)
-				{
-					tail = NULL;
-				}
+			{	remove();
 			}
 
-			// Rewind Ausio Source
+			// Rewind Audio Source
 			if (curr == NULL && audio_looped)
-			{
-				curr = head;
+			{	rewind();
 			}
 		}
 	}
-
-
-	if (audio_fmt.numChannels == fmt.numChannels &&
-		audio_fmt.sampleRate == fmt.sampleRate &&
-		audio_fmt.bitsPerSample == fmt.bitsPerSample)
-	{
-		memcpy(buff, tmp1, output_size);
-	}
-	else
-	{
-		//tmp1 = new char[work_size];
-		//tmp2 = new char[work_size];
-	}
-
-	delete[] tmp1;
 }
 
 // Clears the data from the Audio Source
@@ -197,6 +167,28 @@ void AudioSource::clear()
 	tail = NULL;
 	curr = NULL;
 	offset = 0;
+}
+
+// Removes the nodes of of audio data up till the current current 
+// if the source is not buffered. If empty, tail is set to NULL
+void AudioSource::remove()
+{
+	DataNode* tmp = head;
+	DataNode* nxt = NULL;
+
+	while (tmp != curr)
+	{
+		nxt = tmp->next;
+		delete[] tmp->origin;
+		delete[] tmp->processed;
+		delete tmp;
+		tmp = nxt;
+	}
+
+	head = curr;
+	if (head == NULL)
+	{	tail = NULL;
+	}
 }
 
 // Rewinds the data to the beginning
