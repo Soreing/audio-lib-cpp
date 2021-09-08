@@ -32,6 +32,9 @@ struct WAVEHeader
     long  subchunk2Size;                        // This is the number of bytes in the data
 };
 
+bool operator==(const WaveFmt &a, const WaveFmt &b);
+bool operator!=(const WaveFmt &a, const WaveFmt &b);
+
 WaveFmt makeWaveFmt(short numChannels, short bitsPerSample, long sampleRate);
 
 bool isCorrectHeader(WAVEHeader &hdr);

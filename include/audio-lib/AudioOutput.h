@@ -72,7 +72,7 @@ public:
 	int setFormat(short channels, short bitsPerSample, long samplesPerSec);
 
 	// Creates and returns a new Audio Source ties to the Audio Output
-	AudioSource* createSource(WaveFmt fmt, unsigned char flags = 0);
+	AudioSource* createSource(unsigned char flags = 0);
 
 	// Gets n blocks of audio data mixed from all Audio Sources
 	void getAudioData(char* buffer, int blocks);

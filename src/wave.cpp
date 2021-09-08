@@ -1,6 +1,18 @@
 #include <audio-lib/wave.h>
 #include <string.h>
 
+bool operator==(const WaveFmt &a, const WaveFmt &b)
+{
+    return  a.numChannels   == b.numChannels   &&
+		    a.bitsPerSample == b.bitsPerSample &&
+		    a.sampleRate    == b.sampleRate;
+}
+
+bool operator!=(const WaveFmt &a, const WaveFmt &b)
+{
+    return  !(a == b);
+}
+
 WaveFmt makeWaveFmt(short numChannels, short bitsPerSample, long sampleRate)
 {
     WaveFmt fmt;

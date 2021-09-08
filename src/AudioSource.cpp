@@ -1,11 +1,13 @@
 #include <audio-lib/AudioSource.h>
+#include <iostream>
 
 AudioSource::AudioSource(WaveFmt fmt, unsigned char flags)
 	: audio_fmt(fmt),
 	head(NULL), tail(NULL), curr(NULL), offset(0),
 	empty_persist( (flags & AS_FLAG_PERSIST ) > 0),
 	data_buffered( (flags & AS_FLAG_BUFFERED) > 0),
-	audio_looped ( (flags & AS_FLAG_LOOPED  ) > 0)
+	audio_looped ( (flags & AS_FLAG_LOOPED  ) > 0),
+	conv(fmt, fmt)
 {}
 
 AudioSource::~AudioSource()
@@ -19,25 +21,16 @@ AudioSource::~AudioSource()
 // is kept, along with the original format of the data
 void AudioSource::add(const char* data, size_t blocks, const WaveFmt &fmt)
 {
-	if(	conv.in_fmt.numChannels != fmt.numChannels ||
-		conv.in_fmt.bitsPerSample != fmt.bitsPerSample ||
-		conv.in_fmt.sampleRate != fmt.sampleRate)
-	{
-		// Re-Initialize Converter
+	if(	conv.in_fmt != fmt)
+	{	conv.init(fmt, audio_fmt);
 	}
 
-	int max_blocks_in  = conv.max_input * MAX_NODE_UNITS;	
-	int max_blocks_out = conv.max_output * MAX_NODE_UNITS;
+	size_t max_blocks_in  = conv.max_input * MAX_NODE_UNITS;	
+	size_t max_blocks_out = conv.max_output * MAX_NODE_UNITS;
+	bool matching_format  = (audio_fmt == fmt);
+	
 	char* src = (char*)data;
-	bool matching_format =  false;
 	DataNode* this_node;
-
-	if(	audio_fmt.numChannels != fmt.numChannels ||
-		audio_fmt.bitsPerSample != fmt.bitsPerSample ||
-		audio_fmt.sampleRate != fmt.sampleRate)
-	{
-		matching_format = true;
-	}
 
 	while(blocks > 0)
 	{
@@ -68,6 +61,8 @@ void AudioSource::add(const char* data, size_t blocks, const WaveFmt &fmt)
 					this_node->processed,
 					max_blocks_in
 				);
+
+				this_node->proc_len /= conv.out_fmt.blockAlign;
 			}
 
 			src += max_blocks_in * conv.in_fmt.blockAlign;
@@ -88,6 +83,8 @@ void AudioSource::add(const char* data, size_t blocks, const WaveFmt &fmt)
 					this_node->processed,
 					blocks
 				);
+
+				this_node->proc_len /= conv.out_fmt.blockAlign;
 			}
 
 			src += blocks * conv.in_fmt.blockAlign;
@@ -125,15 +122,15 @@ void AudioSource::take(char* buff, size_t blocks)
 			blocks = 0;
 		}
 		// Case where the next data's format hasn't been converted yet
-		else if (
-			audio_fmt.numChannels   !=  curr->num_channels ||
-			audio_fmt.bitsPerSample !=  curr->bit_depth    ||
-			audio_fmt.sampleRate    !=  curr->sample_rate )
-		{
-			copy_amount = blocks * audio_fmt.blockAlign;
-			memset(copy_to, 0, copy_amount);
-			blocks = 0;
-		}
+		//else if (
+		//	audio_fmt.numChannels   !=  curr->num_channels ||
+		//	audio_fmt.bitsPerSample !=  curr->bit_depth    ||
+		//	audio_fmt.sampleRate    !=  curr->sample_rate )
+		//{
+		//	copy_amount = blocks * audio_fmt.blockAlign;
+		//	memset(copy_to, 0, copy_amount);
+		//	blocks = 0;
+		//}
 		// Case where this is the last data block needed
 		else if (curr->proc_len - offset > blocks)
 		{

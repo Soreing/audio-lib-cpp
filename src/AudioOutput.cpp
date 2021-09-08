@@ -215,14 +215,14 @@ int AudioOutput::closeDevice()
 
 
 // Creates and returns a new Audio Source ties to the Audio Output
-AudioSource* AudioOutput::createSource(WaveFmt fmt, unsigned char flags)
+AudioSource* AudioOutput::createSource(unsigned char flags)
 {
 	if (head == NULL)
-	{	head = new AudioNode{ AudioSource(fmt, flags), NULL };
+	{	head = new AudioNode{ AudioSource(supported_fmt, flags), NULL };
 		tail = head;
 	}
 	else
-	{	tail->next = new AudioNode{ AudioSource(fmt, flags), NULL };
+	{	tail->next = new AudioNode{ AudioSource(supported_fmt, flags), NULL };
 		tail = tail->next;
 	}
 
@@ -368,7 +368,7 @@ void AudioOutput::getAudioData(char* buffer, int blocks)
 
 	AudioNode* tmp = head;
 	while (tmp != NULL)
-	{	(tmp->source).take(mixer_buffer, blocks, supported_fmt);
+	{	(tmp->source).take(mixer_buffer, blocks);
 		mixAudioData(buffer, mixer_buffer, buffer_bytes, sample_size);
 		tmp = tmp->next;
 	}
