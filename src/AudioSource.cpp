@@ -28,6 +28,66 @@ void AudioSource::add(const char* data, size_t blocks, const WaveFmt &fmt)
 	size_t max_blocks_in  = conv.max_input * MAX_NODE_UNITS;	
 	size_t max_blocks_out = conv.max_output * MAX_NODE_UNITS;
 	bool matching_format  = (audio_fmt == fmt);
+	int copy_amount;
+
+	char* src = (char*)data;
+	DataNode* this_node;
+
+	while(blocks > 0)
+	{
+		this_node = new DataNode{
+			fmt.sampleRate,
+			fmt.numChannels,
+			fmt.bitsPerSample,
+			NULL, 0,
+			NULL, 0,
+			NULL
+		};
+
+		copy_amount = blocks > max_blocks_in ? max_blocks_in : blocks;
+
+		this_node->origin    = new char[max_blocks_in  * fmt.blockAlign];
+		this_node->processed = new char[max_blocks_out * audio_fmt.blockAlign];
+		this_node->orig_len  = copy_amount;
+
+		memcpy(this_node->origin, src, copy_amount * fmt.blockAlign);
+
+		if(matching_format)
+		{	this_node->proc_len  = copy_amount;
+			memcpy(this_node->processed, src, copy_amount * fmt.blockAlign);
+		}
+		else
+		{	this_node->proc_len = conv.convert(
+				this_node->origin,
+				this_node->processed,
+				copy_amount
+			);
+
+			this_node->proc_len /= audio_fmt.blockAlign;
+		}
+
+		src += copy_amount * audio_fmt.blockAlign;
+		blocks -= copy_amount;
+
+		if (head == NULL)
+		{	head = this_node;
+			tail = head;
+			curr = head;
+		}
+		else
+		{	tail->next = this_node;
+			tail = tail->next;
+		}
+	}
+}
+
+// Adds n blocks of data to the end of the Audio Source
+// The input is chopped into smaller units but doesn't get
+void AudioSource::add_async(const char* data, size_t blocks, const WaveFmt &fmt)
+{
+	size_t max_blocks_in = FormatConverter::find_max_input_size(fmt) * MAX_NODE_UNITS;	
+	bool matching_format = (audio_fmt == fmt);
+	int copy_amount;
 	
 	char* src = (char*)data;
 	DataNode* this_node;
@@ -43,53 +103,15 @@ void AudioSource::add(const char* data, size_t blocks, const WaveFmt &fmt)
 			NULL
 		};
 
-		this_node->origin    = new char[max_blocks_in * conv.in_fmt.blockAlign];
-		this_node->processed = new char[max_blocks_out * conv.out_fmt.blockAlign];
+		copy_amount = blocks > max_blocks_in ? max_blocks_in : blocks;
 
-		if(blocks > max_blocks_in)
-		{	
-			this_node->orig_len  = max_blocks_in;
-			memcpy(this_node->origin, src, max_blocks_in * conv.in_fmt.blockAlign);
+		this_node->origin = new char[max_blocks_in * fmt.blockAlign];
+		this_node->orig_len  = copy_amount;
 
-			if(matching_format)
-			{	this_node->proc_len  = max_blocks_in;
-				memcpy(this_node->processed, src, max_blocks_in * conv.in_fmt.blockAlign);
-			}
-			else
-			{	this_node->proc_len = conv.convert(
-					this_node->origin,
-					this_node->processed,
-					max_blocks_in
-				);
+		memcpy(this_node->origin, src, copy_amount * fmt.blockAlign);
 
-				this_node->proc_len /= conv.out_fmt.blockAlign;
-			}
-
-			src += max_blocks_in * conv.in_fmt.blockAlign;
-			blocks -= max_blocks_in;
-		}
-		else
-		{
-			this_node->orig_len  = blocks;
-			memcpy(this_node->origin, src, blocks * conv.in_fmt.blockAlign);
-
-			if(matching_format)
-			{	this_node->proc_len  = blocks;
-				memcpy(this_node->processed, src, blocks * conv.in_fmt.blockAlign);
-			}
-			else
-			{	this_node->proc_len = conv.convert(
-					this_node->origin,
-					this_node->processed,
-					blocks
-				);
-
-				this_node->proc_len /= conv.out_fmt.blockAlign;
-			}
-
-			src += blocks * conv.in_fmt.blockAlign;
-			blocks -= blocks;
-		}
+		src += copy_amount * fmt.blockAlign;
+		blocks -= copy_amount;
 
 		if (head == NULL)
 		{	head = this_node;
@@ -103,7 +125,6 @@ void AudioSource::add(const char* data, size_t blocks, const WaveFmt &fmt)
 	}
 }
 
-
 // Takes n blocks of data from the Audio Source across Data Nodes
 // If the Source ran out of data, 0s are returned. If the format of the
 // next node is different, the Source is paused and 0s are returned
@@ -114,23 +135,13 @@ void AudioSource::take(char* buff, size_t blocks)
 
 	for (copy_to = buff; blocks > 0; copy_to += copy_amount)
 	{
-		// Case where there is no more data
-		if (curr == NULL)
+		// Case where there is no more data or data is unconverted
+		if (curr == NULL || curr->processed == NULL)
 		{
 			copy_amount = blocks * audio_fmt.blockAlign;
 			memset(copy_to, 0, copy_amount);
 			blocks = 0;
 		}
-		// Case where the next data's format hasn't been converted yet
-		//else if (
-		//	audio_fmt.numChannels   !=  curr->num_channels ||
-		//	audio_fmt.bitsPerSample !=  curr->bit_depth    ||
-		//	audio_fmt.sampleRate    !=  curr->sample_rate )
-		//{
-		//	copy_amount = blocks * audio_fmt.blockAlign;
-		//	memset(copy_to, 0, copy_amount);
-		//	blocks = 0;
-		//}
 		// Case where this is the last data block needed
 		else if (curr->proc_len - offset > blocks)
 		{
@@ -164,6 +175,7 @@ void AudioSource::take(char* buff, size_t blocks)
 		}
 	}
 }
+
 
 // Clears the data from the Audio Source
 // Deallocates all resources and resets pointers

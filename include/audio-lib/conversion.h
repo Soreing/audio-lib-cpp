@@ -43,6 +43,9 @@ public:
     // Deallocates any dynamic arrays that were created
     void clear();
 
+    // Finds the max input unit block size
+    static int find_max_input_size(const WaveFmt &in_fmt);
+
     // Breaks down the conversion of a larger wave to smaller steps
     // Returns the number of blocks that resulted from the conversion
     int convert(char* src, char* dst, size_t blocks);

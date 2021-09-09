@@ -53,6 +53,10 @@ public:
 	// is kept, along with the original format of the data
 	void add(const char* data, size_t blocks, const WaveFmt &fmt);
 
+	// Adds n blocks of data to the end of the Audio Source
+	// The input is chopped into smaller units but doesn't get
+	void add_async(const char* data, size_t blocks, const WaveFmt &fmt);
+
 	// Takes n blocks of data from the Audio Source across Data Nodes
 	// If the Source ran out of data, 0s are returned. If the format of the
 	// next node is different, the Source is paused and 0s are returned

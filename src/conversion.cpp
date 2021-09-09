@@ -137,6 +137,17 @@ void FormatConverter::clear()
 }
 
 
+// Finds the max input unit block size
+int FormatConverter::find_max_input_size(const WaveFmt &in_fmt)
+{
+    int max = in_fmt.sampleRate/100;
+    if(in_fmt.sampleRate % 100 != 0)
+    {   max++;
+    }
+
+    return max;
+}
+
 // Breaks down the conversion of a larger wave to smaller steps
 // Returns the number of blocks that resulted from the conversion
 int FormatConverter::convert(char* src, char* dst, size_t blocks)
