@@ -49,15 +49,16 @@ int main()
 	getAudioClip("clip1.wav", clip1, size1, fmt1);
 	getAudioClip("clip2.wav", clip2, size2, fmt2);
 
-	aout.setFormat(makeWaveFmt(_Stereo, _16Bit, _44kHz));
-	aout.openDevice(0);
+	aout.setFormat(makeWaveFmt(_Stereo, _16Bit, _48kHz));
 
 	AudioSource* src1 = aout.createSource(AS_FLAG_BUFFERED | AS_FLAG_LOOPED);
 	src1->add_async(clip1, size1 / fmt1.blockAlign, fmt1);
+	src1->add_async(clip2, size2 / fmt2.blockAlign, fmt2);
 
-	AudioSource* src2 = aout.createSource(AS_FLAG_BUFFERED | AS_FLAG_LOOPED);
-	src2->add_async(clip2, size2 / fmt2.blockAlign, fmt2);
+	//AudioSource* src2 = aout.createSource(AS_FLAG_BUFFERED | AS_FLAG_LOOPED);
+	//src2->add_async(clip2, size2 / fmt2.blockAlign, fmt2);
 
+	aout.openDevice(0);
 	if (aout.state == Playing)
 	{
 		system("PAUSE");

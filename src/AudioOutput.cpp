@@ -222,7 +222,7 @@ AudioSource* AudioOutput::createSource(unsigned char flags)
 		tail = head;
 	}
 	else
-	{	tail->next = new AudioNode{ AudioSource(supported_fmt, flags), NULL };
+	{	//tail->next = new AudioNode{ AudioSource(supported_fmt, flags), NULL };
 		tail = tail->next;
 	}
 

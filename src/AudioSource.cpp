@@ -1,14 +1,55 @@
 #include <audio-lib/AudioSource.h>
 #include <iostream>
 
+THREAD audio_data_manager(void* lparam)
+{
+	AudioSource* asrc = (AudioSource*)lparam;
+	AudioSource::DataNode* this_node;
+
+	while(true)
+	{
+		this_node = asrc->proc;
+
+		if(this_node != NULL)
+		{
+			// Reset the Format Converter if the new node's format is different 
+			if(	asrc->conv.in_fmt != this_node->fmt)
+			{	asrc->conv.init(this_node->fmt, asrc->audio_fmt);
+			}
+
+			// If the node is unprocessed, process it
+			if(this_node->processed == NULL)
+			{	asrc->process_node(this_node);
+			}
+
+			// If the next node is not NULL, move to it
+			if(asrc->proc->next != NULL)
+			{	asrc->proc = asrc->proc->next;
+			}
+			// If the pointer reached the end, check if the beginning is processed
+			// If not, start processing from the beginning
+			else if(asrc->head->processed == NULL)
+			{	asrc->proc = asrc->head;
+			}
+			// If all nodes are processed, go to sleep
+			else
+			{	asrc->handler_sig.wait();
+			}
+		}
+
+	}
+}
+
 AudioSource::AudioSource(WaveFmt fmt, unsigned char flags)
 	: audio_fmt(fmt),
-	head(NULL), tail(NULL), curr(NULL), offset(0),
+	head(NULL), tail(NULL), curr(NULL), proc(NULL), offset(0),
 	empty_persist( (flags & AS_FLAG_PERSIST ) > 0),
 	data_buffered( (flags & AS_FLAG_BUFFERED) > 0),
 	audio_looped ( (flags & AS_FLAG_LOOPED  ) > 0),
 	conv(fmt, fmt)
-{}
+{
+	data_handler.create(audio_data_manager, this);
+}
 
 AudioSource::~AudioSource()
 {
@@ -26,8 +67,6 @@ void AudioSource::add(const char* data, size_t blocks, const WaveFmt &fmt)
 	}
 
 	size_t max_blocks_in  = conv.max_input * MAX_NODE_UNITS;	
-	size_t max_blocks_out = conv.max_output * MAX_NODE_UNITS;
-	bool matching_format  = (audio_fmt == fmt);
 	int copy_amount;
 
 	char* src = (char*)data;
@@ -35,36 +74,15 @@ void AudioSource::add(const char* data, size_t blocks, const WaveFmt &fmt)
 
 	while(blocks > 0)
 	{
-		this_node = new DataNode{
-			fmt.sampleRate,
-			fmt.numChannels,
-			fmt.bitsPerSample,
-			NULL, 0,
-			NULL, 0,
-			NULL
-		};
+		this_node = new DataNode{ fmt, NULL, 0, NULL, 0, NULL };
 
 		copy_amount = blocks > max_blocks_in ? max_blocks_in : blocks;
 
 		this_node->origin    = new char[max_blocks_in  * fmt.blockAlign];
-		this_node->processed = new char[max_blocks_out * audio_fmt.blockAlign];
 		this_node->orig_len  = copy_amount;
 
 		memcpy(this_node->origin, src, copy_amount * fmt.blockAlign);
-
-		if(matching_format)
-		{	this_node->proc_len  = copy_amount;
-			memcpy(this_node->processed, src, copy_amount * fmt.blockAlign);
-		}
-		else
-		{	this_node->proc_len = conv.convert(
-				this_node->origin,
-				this_node->processed,
-				copy_amount
-			);
-
-			this_node->proc_len /= audio_fmt.blockAlign;
-		}
+		process_node(this_node);
 
 		src += copy_amount * audio_fmt.blockAlign;
 		blocks -= copy_amount;
@@ -73,6 +91,7 @@ void AudioSource::add(const char* data, size_t blocks, const WaveFmt &fmt)
 		{	head = this_node;
 			tail = head;
 			curr = head;
+			proc = head;
 		}
 		else
 		{	tail->next = this_node;
@@ -86,7 +105,6 @@ void AudioSource::add(const char* data, size_t blocks, const WaveFmt &fmt)
 void AudioSource::add_async(const char* data, size_t blocks, const WaveFmt &fmt)
 {
 	size_t max_blocks_in = FormatConverter::find_max_input_size(fmt) * MAX_NODE_UNITS;	
-	bool matching_format = (audio_fmt == fmt);
 	int copy_amount;
 	
 	char* src = (char*)data;
@@ -94,19 +112,11 @@ void AudioSource::add_async(const char* data, size_t blocks, const WaveFmt &fmt)
 
 	while(blocks > 0)
 	{
-		this_node = new DataNode{
-			fmt.sampleRate,
-			fmt.numChannels,
-			fmt.bitsPerSample,
-			NULL, 0,
-			NULL, 0,
-			NULL
-		};
-
+		this_node   = new DataNode{ fmt, NULL, 0, NULL, 0, NULL };
 		copy_amount = blocks > max_blocks_in ? max_blocks_in : blocks;
 
-		this_node->origin = new char[max_blocks_in * fmt.blockAlign];
-		this_node->orig_len  = copy_amount;
+		this_node->origin   = new char[max_blocks_in * fmt.blockAlign];
+		this_node->orig_len = copy_amount;
 
 		memcpy(this_node->origin, src, copy_amount * fmt.blockAlign);
 
@@ -117,12 +127,15 @@ void AudioSource::add_async(const char* data, size_t blocks, const WaveFmt &fmt)
 		{	head = this_node;
 			tail = head;
 			curr = head;
+			proc = head;
 		}
 		else
 		{	tail->next = this_node;
 			tail = tail->next;
 		}
 	}
+
+	handler_sig.set();
 }
 
 // Takes n blocks of data from the Audio Source across Data Nodes
@@ -181,6 +194,8 @@ void AudioSource::take(char* buff, size_t blocks)
 // Deallocates all resources and resets pointers
 void AudioSource::clear()
 {
+	data_handler.terminate();
+	
 	DataNode* tmp = head;
 	DataNode* nxt = NULL;
 
@@ -197,6 +212,30 @@ void AudioSource::clear()
 	tail = NULL;
 	curr = NULL;
 	offset = 0;
+}
+
+// Resets the format and hte filter of the audio source and 
+// clears all processed data that was converted from the original samples
+void AudioSource::reset_format(const WaveFmt &fmt)
+{
+	audio_fmt = fmt;
+	conv.init(fmt, fmt);
+
+	DataNode* tmp = head;
+	DataNode* nxt = NULL;
+
+	while (tmp != NULL)
+	{
+		nxt = tmp->next;
+		tmp->proc_len = 0;
+		delete[] tmp->processed;
+		tmp = nxt;
+	}
+
+	proc   = curr;
+	offset = 0;
+
+	data_handler.create(audio_data_manager, this);
 }
 
 // Removes the nodes of of audio data up till the current current 
