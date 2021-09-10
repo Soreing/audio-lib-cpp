@@ -35,12 +35,13 @@ class AudioSource
 	WaveFmt audio_fmt;			// Format of the Audio Source
 
 	thread data_handler;		// Handles newly input and unconverted data
-	signal handler_sig;			// Event signal that the converter needs to work again 
+	signal handler_sig;			// Event signal that the converter needs to work again
+	mutex  proc_mutex;			// Mutex for modifying the processed node pointer
+	DataNode* proc;				// Pointer to the current block of data being processed
 
 	DataNode* head;				// Start of the Audio Data
 	DataNode* tail;				// End of the Audio Data
 	DataNode* curr;				// Pointer to the current block of data being played
-	DataNode* proc;				// Pointer to the current block of data being processed
 	size_t    offset;			// Block Offset in the current block of Data
 
 	bool empty_persist : 1;		// Audio Source should not be deleted if it reached the end

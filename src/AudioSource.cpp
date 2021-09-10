@@ -8,6 +8,7 @@ THREAD audio_data_manager(void* lparam)
 
 	while(true)
 	{
+		asrc->proc_mutex.lock();
 		this_node = asrc->proc;
 
 		if(this_node != NULL)
@@ -22,19 +23,14 @@ THREAD audio_data_manager(void* lparam)
 			{	asrc->process_node(this_node);
 			}
 
-			// If the next node is not NULL, move to it
-			if(asrc->proc->next != NULL)
-			{	asrc->proc = asrc->proc->next;
-			}
-			// If the pointer reached the end, check if the beginning is processed
-			// If not, start processing from the beginning
-			else if(asrc->head->processed == NULL)
-			{	asrc->proc = asrc->head;
-			}
-			// If all nodes are processed, go to sleep
-			else
-			{	asrc->handler_sig.wait();
-			}
+			// Move to the next node for processing it
+			asrc->proc = asrc->proc->next;
+			asrc->proc_mutex.unlock();
+		}
+		// If all nodes are processed, go to sleep
+		else
+		{	asrc->proc_mutex.unlock();
+			asrc->handler_sig.wait();
 		}
 
 	}
@@ -91,7 +87,6 @@ void AudioSource::add(const char* data, size_t blocks, const WaveFmt &fmt)
 		{	head = this_node;
 			tail = head;
 			curr = head;
-			proc = head;
 		}
 		else
 		{	tail->next = this_node;
@@ -127,7 +122,6 @@ void AudioSource::add_async(const char* data, size_t blocks, const WaveFmt &fmt)
 		{	head = this_node;
 			tail = head;
 			curr = head;
-			proc = head;
 		}
 		else
 		{	tail->next = this_node;
@@ -148,7 +142,18 @@ void AudioSource::take(char* buff, size_t blocks)
 
 	for (copy_to = buff; blocks > 0; copy_to += copy_amount)
 	{
-		// Case where there is no more data or data is unconverted
+		// If unconverted data is found, ask it to be converted
+		// Except if the converter is currently processing it
+		if(curr->processed == NULL && proc != curr)
+		{	
+			proc_mutex.lock();
+			proc = curr;
+			conv.init(curr->fmt, audio_fmt);
+			handler_sig.set();
+			proc_mutex.unlock();
+		}
+		
+		// Case where there is no more data or the data is unconverted
 		if (curr == NULL || curr->processed == NULL)
 		{
 			copy_amount = blocks * audio_fmt.blockAlign;
