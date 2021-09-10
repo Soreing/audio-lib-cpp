@@ -74,22 +74,7 @@ public:
 	void reset_format(const WaveFmt &fmt);
 
 	// Processes a single node's original data with the current Format Converter
-	void process_node(DataNode *node)
-	{
-		size_t max_blocks_out = conv.max_output * MAX_NODE_UNITS;
-		char* buffer = new char[max_blocks_out * audio_fmt.blockAlign];
-
-		if(audio_fmt == node->fmt)
-		{	node->proc_len = node->orig_len;
-			memcpy(	buffer, node->origin, node->orig_len * audio_fmt.blockAlign);
-		}
-		else
-		{	node->proc_len = conv.convert( node->origin, buffer, node->orig_len);
-			node->proc_len /= audio_fmt.blockAlign;
-		}
-
-		node->processed = buffer;
-	}
+	void process_node(DataNode *node);
 
 	// Clears the data from the Audio Source
 	// Deallocates all resources and resets pointers

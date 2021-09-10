@@ -243,6 +243,24 @@ void AudioSource::reset_format(const WaveFmt &fmt)
 	data_handler.create(audio_data_manager, this);
 }
 
+// Processes a single node's original data with the current Format Converter
+void AudioSource::process_node(DataNode *node)
+{
+	size_t max_blocks_out = conv.max_output * MAX_NODE_UNITS;
+	char* buffer = new char[max_blocks_out * audio_fmt.blockAlign];
+
+	if(audio_fmt == node->fmt)
+	{	node->proc_len = node->orig_len;
+		memcpy(	buffer, node->origin, node->orig_len * audio_fmt.blockAlign);
+	}
+	else
+	{	node->proc_len = conv.convert( node->origin, buffer, node->orig_len);
+		node->proc_len /= audio_fmt.blockAlign;
+	}
+
+	node->processed = buffer;
+}
+
 // Removes the nodes of of audio data up till the current current 
 // if the source is not buffered. If empty, tail is set to NULL
 void AudioSource::remove()
