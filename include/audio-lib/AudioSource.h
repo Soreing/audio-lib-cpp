@@ -13,7 +13,7 @@
 #define AS_FLAG_BUFFERED 2
 #define AS_FLAG_LOOPED   4
 
-#define MAX_NODE_UNITS 10
+#define MAX_NODE_UNITS 1
 
 #define MAX(a, b)  (a > b ? a : b)
 
@@ -31,11 +31,14 @@ class AudioSource
 		DataNode* next;			// Pointer to the next Node
 	};
 
-	FormatConverter conv;		// Format converter to convert input data
+	FormatConverter converter;  // Primary data format converter for adding new input
 	WaveFmt audio_fmt;			// Format of the Audio Source
 
-	thread data_handler;		// Handles newly input and unconverted data
-	signal handler_sig;			// Event signal that the converter needs to work again
+	thread post_handler;		// Handles data processing after the starting node
+	thread pre_handler;			// Handles data processing from the beginning to the starting node
+	bool   handler_active;		// State of the data handler threads 
+
+	signal insert_sig;			// Event signal to notify the handler of new data added
 	mutex  proc_mutex;			// Mutex for modifying the processed node pointer
 	DataNode* proc;				// Pointer to the current block of data being processed
 
@@ -74,7 +77,7 @@ public:
 	void reset_format(const WaveFmt &fmt);
 
 	// Processes a single node's original data with the current Format Converter
-	void process_node(DataNode *node);
+	void process_node(FormatConverter *cnv, DataNode *node);
 
 	// Clears the data from the Audio Source
 	// Deallocates all resources and resets pointers
@@ -88,7 +91,8 @@ public:
 	// Only has an effect if the data is buffered
 	void rewind();
 
-	friend THREAD audio_data_manager(void* lparam);
+	friend THREAD primary_data_processor(void* lparam);
+	friend THREAD secondary_data_processor(void* lparam);
 };
 
 #endif AUDIOSOURCE_H

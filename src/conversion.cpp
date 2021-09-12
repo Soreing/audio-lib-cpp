@@ -99,7 +99,7 @@ void FormatConverter::init(WaveFmt in, WaveFmt out)
         }
 
         max_output = buffer_size;
-        rate_ptr = new char[max_output * out_fmt.byteRate];
+        rate_ptr = new char[max_output * out_fmt.blockAlign];
 
         delete[] in_factors;
         delete[] out_factors;

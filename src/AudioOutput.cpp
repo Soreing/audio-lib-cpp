@@ -337,6 +337,15 @@ int AudioOutput::setFormat(WaveFmt fmt)
 			closeDevice();
 			if(last_error == 0)
 			{
+				std::cout<< "Hello";
+				AudioNode* tmp = head;
+				while(tmp != NULL)
+				{	tmp->source.reset_format(supported_fmt);
+					tmp = tmp->next;
+				}
+
+				std::cout<< "Bye";
+
 				openDevice(devID);
 				if(last_error == 0)
 				{	return 0;

@@ -6,7 +6,7 @@
 
 enum Channel    { _Mono=1,  _Stereo=2 };
 enum SampleSize { _8Bit=8, _16Bit=16  };
-enum Frequency  { _11kHz=11025, _22kHz=22050, _44kHz=44100, _48kHz=48000, _96kHz=96000};
+enum Frequency  { _8kHz=8000, _11kHz=11025, _16kHz=16000, _22kHz=22050, _24kHz=24000, _32kHz=32000, _44kHz=44100, _48kHz=48000, _88kHz=88200, _96kHz=96000};
 
 struct WaveFmt
 {   
