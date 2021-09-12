@@ -1,8 +1,6 @@
 #include <audio-lib/AudioOutput.h>
 
-#include <thread>
 #include <chrono>
-#include <iostream>
 
 using std::chrono::steady_clock;
 using std::chrono::milliseconds;
@@ -50,7 +48,7 @@ void CALLBACK audioCallback(HWAVEIN hwi, UINT uMsg, DWORD_PTR dwInstance, DWORD_
 
 // Loads audio data from Audio Sources to the Audio Buffer in set intervals
 // The thread goes to sleep between updates and quits when the speaker is closed
-void audioLoaderThread(void* lparam)
+THREAD audioLoaderThread(void* lparam)
 {
 	AudioOutput* aout = (AudioOutput*)lparam;
 
@@ -71,7 +69,7 @@ void audioLoaderThread(void* lparam)
 	start = steady_clock::now();
 
 	// Run while the speaker object is open
-	while (aout->speaker != 0)
+	while (aout->state == Playing)
 	{	
 		// Time in milliseconds for the next update
 		next_count += interval;
@@ -89,10 +87,11 @@ void audioLoaderThread(void* lparam)
 		// SLEEP TILL NEXT UPDATE
 		now = steady_clock::now();
 		time_elapsed = duration_cast<milliseconds>(now - start);
-		std::this_thread::sleep_for(milliseconds(next_count - time_elapsed.count()));
+		thread::sleep((int)(next_count - time_elapsed.count()));
 	}
 
 	delete[] temp_buffer;
+	return 0;
 }
 
 AudioOutput::AudioOutput()
@@ -181,8 +180,8 @@ int AudioOutput::openDevice(size_t deviceID)
 					last_error = waveOutWrite(speaker, &buffer_headerB, sizeof(WAVEHDR));
 					if (last_error == 0)
 					{
-						update_thread = std::thread(audioLoaderThread, (void*)this);
 						state = Playing;
+						update_thread.create(audioLoaderThread, this);
 						return 0;
 					}
 				}
@@ -200,6 +199,8 @@ int AudioOutput::closeDevice()
 	if (speaker != 0)
 	{	
 		state = Stopped;
+		update_thread.join();
+
 		last_error = waveOutReset(speaker);
 		if(last_error == 0)
 		{	
@@ -324,9 +325,6 @@ unsigned long long AudioOutput::getAvailFmts(size_t deviceID)
 
 int AudioOutput::setFormat(WaveFmt fmt)
 {
-	desired_fmt = fmt;
-	supported_fmt = fmt;
-
 	if(speaker != 0)
 	{
 		int devID;
@@ -337,14 +335,14 @@ int AudioOutput::setFormat(WaveFmt fmt)
 			closeDevice();
 			if(last_error == 0)
 			{
-				std::cout<< "Hello";
+				desired_fmt = fmt;
+				supported_fmt = fmt;
+
 				AudioNode* tmp = head;
 				while(tmp != NULL)
 				{	tmp->source.reset_format(supported_fmt);
 					tmp = tmp->next;
 				}
-
-				std::cout<< "Bye";
 
 				openDevice(devID);
 				if(last_error == 0)
@@ -352,6 +350,10 @@ int AudioOutput::setFormat(WaveFmt fmt)
 				}
 			}
 		}
+	}
+	else
+	{	desired_fmt = fmt;
+		supported_fmt = fmt;
 	}
 
 	return -1;

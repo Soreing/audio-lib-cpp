@@ -2,7 +2,8 @@
 #define AUDIOOUTPUT_H
 
 #include <windows.h>
-#include <thread>
+
+#include <cpthread/cpthread.h>
 #include "wave.h"
 #include "AudioSource.h"
 
@@ -36,7 +37,7 @@ public:
 	WAVEHDR buffer_headerA;
 	WAVEHDR buffer_headerB;
 
-	std::thread update_thread;	// Updates the audio buffer on a timer
+	thread update_thread;	// Updates the audio buffer on a timer
 
 	// List of Audio Sources that the stream is playing
 	// Each source is mixed together when added to the buffers

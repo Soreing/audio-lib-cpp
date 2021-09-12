@@ -1,12 +1,9 @@
 #include <audio-lib/AudioSource.h>
-#include <iostream>
 
 THREAD primary_data_processor(void* lparam)
 {
 	AudioSource* asrc = (AudioSource*)lparam;
 	AudioSource::DataNode* this_node;
-
-	std::cout<< "Primary Started...\n";
 
 	while(asrc->handler_active)
 	{
@@ -28,13 +25,11 @@ THREAD primary_data_processor(void* lparam)
 		}
 		// If all nodes are processed, go to sleep
 		else
-		{	std::cout<< "Primary waiting for data...\n";
-			asrc->proc_mutex.unlock();
+		{	asrc->proc_mutex.unlock();
 			asrc->insert_sig.wait();
 		}
 	}
 
-	std::cout<< "Primary Quit...\n";
 	return 0;
 }
 
@@ -44,13 +39,10 @@ THREAD secondary_data_processor(void* lparam)
 	AudioSource::DataNode* this_node = asrc->head;
 	AudioSource::DataNode* end_node  = asrc->curr;
 
-	std::cout<< "Secondary Started...\n";
-
 	// If the Audio Source starts from the beginning, there is no need
 	// for a secondary data processor, and the thread can quit
 	if(this_node == NULL)
-	{	std::cout<< "Secondary Useless...\n";
-		return 0;
+	{	return 0;
 	}
 
 	// Set up the converter for the secondary processor
@@ -75,7 +67,6 @@ THREAD secondary_data_processor(void* lparam)
 		this_node = this_node->next;
 	}
 
-	std::cout<< "Secondary Quit...\n";
 	return 0;
 }
 

@@ -62,13 +62,6 @@ int main()
 	//src2->add_async(clip2, size2 / fmt2.blockAlign, fmt2);
 
 	aout.openDevice(0);
-	/*if (aout.state == Playing)
-	{
-		system("PAUSE");
-		aout.setFormat(makeWaveFmt(_Stereo, _16Bit, _11kHz));
-		system("PAUSE");
-		aout.closeDevice();
-	}*/
 
 	char* op_name[3]  = {"Channels:      ", "Bit-Depth:     ", "Sampling Rate: "}; 
 	int*  op_val [3];
@@ -87,7 +80,7 @@ int main()
 	op_val[1] = op_depth;
 	op_val[2] = op_rate;
 
-system("PAUSE");
+	system("PAUSE");
 	system("CLS");
 	for(int i=0; i<=max_op; i++)
 	{	std::cout<< (i==select_op ? " > " : "   ") << op_name[i] << op_val[i][select_val[i]] << "\n";
