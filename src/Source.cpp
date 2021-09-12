@@ -87,6 +87,7 @@ int main()
 	op_val[1] = op_depth;
 	op_val[2] = op_rate;
 
+system("PAUSE");
 	system("CLS");
 	for(int i=0; i<=max_op; i++)
 	{	std::cout<< (i==select_op ? " > " : "   ") << op_name[i] << op_val[i][select_val[i]] << "\n";
@@ -111,8 +112,8 @@ int main()
 		{	std::cout<< (i == select_op ? " > " : "   ") << op_name[i] << op_val[i][select_val[i]] << "\n";
 		}
 
-		//if(c == 'a' || c =='d')
-		//	aout.setFormat(makeWaveFmt(op_val[0][select_val[0]], op_val[1][select_val[1]], op_val[2][select_val[2]]));
+		if(c == 'a' || c =='d')
+			aout.setFormat(makeWaveFmt(op_val[0][select_val[0]], op_val[1][select_val[1]], op_val[2][select_val[2]]));
 	}
 
 

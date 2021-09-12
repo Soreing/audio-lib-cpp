@@ -1,5 +1,6 @@
 #include <audio-lib/sampling.h>
 #include <string.h>
+#include <iostream>
 
 #define MODINC(n, m) n = n == m-1 ? 0 : n+1;
 #define MODDEC(n, m) n = n == 0 ? m-1 : n-1;
@@ -7,7 +8,7 @@
 #define MODSUB(n, v, m) n = (n - v) % m;
 
 RateConverter::RateConverter() :
-	inter_delay_lines(0), inter_delay_idxs(0),
+	inter_delay_lines(0), inter_delay_idxs(0), inter_scales(0),
 	decim_delay_lines(0), decim_delay_idxs(0), decim_fractions(0)
 {
 }
@@ -54,6 +55,29 @@ void RateConverter::init(size_t L, size_t M, size_t taps, size_t channels, size_
 		memset(inter_delay_lines[i], bit_depth == 8 ? 0x80 : 0, (bit_depth << 3) * taps / L);
 		memset(decim_delay_lines[i], bit_depth == 8 ? 0x80 : 0, (bit_depth << 3) * taps);
 	}
+
+	decim_scale = 0;
+	for(size_t i = 0; i < taps ; i++)
+	{	decim_scale += decim_filter.coefs[i];
+	}
+
+	inter_scales = new llong[L];
+	int coef_orig = ((inter_filter.size >> 1) + 1) % L;
+	int coef_idx;
+
+	for(size_t i = 0; i < L; i++)
+	{
+		inter_scales[coef_orig] = 0;
+		coef_idx = coef_orig;
+
+		for(size_t j = 0; j < taps / L; j++)
+		{	inter_scales[coef_orig] += inter_filter.coefs[coef_idx];
+			coef_idx += L;
+		}
+
+		inter_scales[coef_orig] *= L;
+		MODINC(coef_orig, L);
+	}
 }
 
 // Deallocates all dynamic resources
@@ -76,6 +100,8 @@ void RateConverter::clear()
 	}
 
 	if(inter_delay_idxs != 0) { delete[] inter_delay_idxs; }
+	if(inter_scales != 0)     { delete[] inter_scales; }
+
 	if(decim_delay_idxs != 0) { delete[] decim_delay_idxs; }
 	if(decim_fractions != 0)  { delete[] decim_fractions; }
 }
@@ -126,7 +152,7 @@ int RateConverter::decimation(const uchar* src, uchar* dst, size_t channel, size
 			}
 
 			// Divide the accumulator with the scale of the filter
-			*dst = (uchar)(tmpVal >> 32);
+			*dst = (uchar)(tmpVal /decim_scale);
 			dst += num_channels;
 			count++;
 		}
@@ -179,7 +205,7 @@ int RateConverter::interpolation(const uchar* src, uchar* dst, size_t channel, s
 
 			// Add next sample from the accumulator to the destination
 			// Divide the accumulator with the scale of the filter
-			*dst = (uchar)(tmpVal >> 32);
+			*dst = (uchar)(tmpVal / inter_scales[coef_idx]);
 			dst += num_channels;
 			count++;
 			MODINC(coef_idx, L);
@@ -249,7 +275,7 @@ int RateConverter::non_integral(const uchar* src, uchar* dst, size_t channel, si
 
 			// Add next sample from the accumulator to the destination
 			// Divide the accumulator with the scale of the filter
-			decim_delay_line[decim_delay_idx] = (uchar)(tmpVal >> 32);
+			decim_delay_line[decim_delay_idx] = (uchar)(tmpVal / inter_scales[coef_idx]);
 			MODINC(decim_delay_idx, decim_filter.size);
 			MODINC(decim_fraction, M);
 			MODINC(coef_idx, L);
@@ -276,7 +302,7 @@ int RateConverter::non_integral(const uchar* src, uchar* dst, size_t channel, si
 		}
 
 		// Divide the accumulator with the scale of the filter
-		*dst = (uchar)(tmpVal >> 32);
+		*dst = (uchar)(tmpVal  / decim_scale);
 		dst += num_channels;
 		count++;
 	}
@@ -331,7 +357,7 @@ int RateConverter::decimation(const short* src, short* dst, size_t channel, size
 			}
 
 			// Divide the accumulator with the scale of the filter
-			*dst = (short)(tmpVal >> 32);
+			*dst = (short)(tmpVal / decim_scale);
 			dst += num_channels;
 			count++;
 		}
@@ -384,7 +410,7 @@ int RateConverter::interpolation(const short* src, short* dst, size_t channel, s
 
 			// Add next sample from the accumulator to the destination
 			// Divide the accumulator with the scale of the filter
-			*dst = (short)(tmpVal >> 32);
+			*dst = (short)(tmpVal / inter_scales[coef_idx]);
 			dst += num_channels;
 			count++;
 			MODINC(coef_idx, L);
@@ -456,7 +482,7 @@ int RateConverter::non_integral(const short* src, short* dst, size_t channel, si
 
 			// Add next sample from the accumulator to the destination
 			// Divide the accumulator with the scale of the filter
-			decim_delay_line[decim_delay_idx] = (short)(tmpVal >> 32);
+			decim_delay_line[decim_delay_idx] = (short)(tmpVal / inter_scales[coef_idx]);
 			MODINC(decim_delay_idx, decim_filter.size);
 			MODINC(decim_fraction, M);
 			MODINC(coef_idx, L);
@@ -484,7 +510,7 @@ int RateConverter::non_integral(const short* src, short* dst, size_t channel, si
 
 
 		// Divide the accumulator with the scale of the filter
-		*dst = (short)(tmpVal >> 32);
+		*dst = (short)(tmpVal / decim_scale);
 		dst += num_channels;
 		count++;
 	}

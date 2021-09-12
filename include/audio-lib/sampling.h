@@ -21,6 +21,9 @@ public:
 	size_t* decim_delay_idxs;		// Indexes of the last data for each channel's decimation delay line
 	void**  decim_delay_lines;		// Delay lines for each channel to store samples for decimation
 
+	llong* inter_scales; 			// Coefficient scaling values of the L interpolated samples
+	llong  decim_scale; 			// Coefficient scaling values of the decimated samples
+
 public:
 	RateConverter();
 	RateConverter(size_t L, size_t M, size_t taps, size_t channels, size_t depth);
