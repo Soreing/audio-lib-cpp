@@ -47,16 +47,17 @@ int main()
 	int     size1,  size2,  size3;
 	WaveFmt fmt1,   fmt2,   fmt3; 
 
+
 	getAudioClip("clip1.wav", clip1, size1, fmt1);
 	getAudioClip("clip2.wav", clip2, size2, fmt2);
 	getAudioClip("clip3.wav", clip3, size3, fmt3);
 
-	aout.setFormat(makeWaveFmt(_Stereo, _16Bit, _48kHz));
+	aout.setFormat(makeWaveFmt(_Stereo, _8Bit, _48kHz));
 
 	AudioSource* src1 = aout.createSource(AS_FLAG_BUFFERED | AS_FLAG_LOOPED);
-	src1->add_async(clip1, size1 / fmt1.blockAlign, fmt1);
+	//src1->add_async(clip1, size1 / fmt1.blockAlign, fmt1);
 	src1->add_async(clip2, size2 / fmt2.blockAlign, fmt2);
-	src1->add_async(clip3, size3 / fmt3.blockAlign, fmt3);
+	//src1->add_async(clip3, size3 / fmt3.blockAlign, fmt3);
 
 	//AudioSource* src2 = aout.createSource(AS_FLAG_BUFFERED | AS_FLAG_LOOPED);
 	//src2->add_async(clip2, size2 / fmt2.blockAlign, fmt2);
@@ -73,18 +74,17 @@ int main()
 	int max_op = 2;
 	int select_op = 0;
 
-	int select_val[3] = { 1, 1, 6 };
+	int select_val[3] = { 1, 0, 7 };
 	int select_max[3] = { 1, 1, 9 };
 
 	op_val[0] = op_channel;
 	op_val[1] = op_depth;
 	op_val[2] = op_rate;
 
-	system("PAUSE");
-	system("CLS");
-	for(int i=0; i<=max_op; i++)
-	{	std::cout<< (i==select_op ? " > " : "   ") << op_name[i] << op_val[i][select_val[i]] << "\n";
-	}
+	//system("CLS");
+	//for(int i=0; i<=max_op; i++)
+	//{	std::cout<< (i==select_op ? " > " : "   ") << op_name[i] << op_val[i][select_val[i]] << "\n";
+	//}
 
 	for(;;)
 	{

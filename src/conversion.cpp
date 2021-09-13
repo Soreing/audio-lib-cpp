@@ -86,7 +86,8 @@ void FormatConverter::init(WaveFmt in, WaveFmt out)
         sub_buffers = new char*[step_count];
 
         int tap_count;
-        int buffer_size = max_input;
+        int buffer_size  = max_input;
+        int default_data = out.bitsPerSample == 8 ? 0x80 : 0;
         for(int i = 0; i < step_count; i++)
         {   
             tap_count = (pairs[i].M * 3) | 1;
@@ -94,7 +95,7 @@ void FormatConverter::init(WaveFmt in, WaveFmt out)
             
             buffer_size = (buffer_size * pairs[i].L / pairs[i].M) + 1;
             sub_buffers[i] = new char[buffer_size * out_fmt.blockAlign];
-            memset(sub_buffers[i], 0, buffer_size * out_fmt.blockAlign);
+            memset(sub_buffers[i], default_data, buffer_size * out_fmt.blockAlign);
         }
 
         max_output = buffer_size;
@@ -202,10 +203,10 @@ int FormatConverter::sub_convert(char* src, char* dst, size_t blocks)
     {
         depth_res = depth_ptr;
         if(in_fmt.bitsPerSample == 8)
-        {   bit_depth_8_to_16((unsigned char*)channel_res, (short*)depth_res, blocks * out_fmt.numChannels);
+        {   bit_depth_8_to_16((uchar*)channel_res, (short*)depth_res, blocks * out_fmt.numChannels);
         }
         else if(in_fmt.bitsPerSample == 16)
-        {   bit_depth_16_to_8((short*)channel_res, (unsigned char*)depth_res, blocks * out_fmt.numChannels);
+        {   bit_depth_16_to_8((short*)channel_res, (uchar*)depth_res, blocks * out_fmt.numChannels);
         }
     }
     else
@@ -226,8 +227,8 @@ int FormatConverter::sub_convert(char* src, char* dst, size_t blocks)
             switch(out_fmt.bitsPerSample)
             {   case 8:
                     output_blocks = convert_sample_rate(
-                        (unsigned char*)sub_src, 
-                        (unsigned char*)sub_dst, 
+                        (uchar*)sub_src, 
+                        (uchar*)sub_dst, 
                         output_blocks, 
                         sub_steps[i]
                     );
@@ -251,7 +252,7 @@ int FormatConverter::sub_convert(char* src, char* dst, size_t blocks)
     }
 
     memcpy(dst, rate_res, output_blocks * out_fmt.blockAlign);
-    return output_blocks * out_fmt.blockAlign;
+    return output_blocks;
 }
 
 // Converts the sample rate of a multi channel 8-bit audio stream
@@ -305,7 +306,7 @@ int convert_sample_rate(const short* src, short* dst, size_t blocks, RateConvert
 }
 
 // Moves the samples from unsigned 8-bit to signed 16-bit wave and scales it up
-void bit_depth_8_to_16(const unsigned char* src, short* dst, size_t samples)
+void bit_depth_8_to_16(const uchar* src, short* dst, size_t samples)
 {
     for(size_t i = 0; i < samples; i++)
     {   dst[i] = ((short)((char)(src[i] - 128))) << 8;
@@ -313,7 +314,7 @@ void bit_depth_8_to_16(const unsigned char* src, short* dst, size_t samples)
 }
 
 // Scales the samples down and moves them from signed to unsigned wave
-void bit_depth_16_to_8(const short* src, unsigned char* dst, size_t samples)
+void bit_depth_16_to_8(const short* src, uchar* dst, size_t samples)
 {
     for(size_t i = 0; i < samples; i++)
     {   dst[i] = ((char)(src[i] / 256)) + 128;
@@ -326,8 +327,8 @@ void mono_to_stereo(const char* src, const char* dst, size_t depth, size_t sampl
     for(size_t i = 0; i < samples; i++)
     {
         if(depth == 8)
-        {   *((unsigned char*)dst + (i<<1))     = *((unsigned char*)src + i);
-            *((unsigned char*)dst + (i<<1) + 1) = *((unsigned char*)src + i);
+        {   *((uchar*)dst + (i<<1))     = *((uchar*)src + i);
+            *((uchar*)dst + (i<<1) + 1) = *((uchar*)src + i);
         }
         else if (depth == 16)
         {   *((short*)dst + (i<<1))     = *((short*)src + i);
@@ -342,8 +343,8 @@ void stereo_to_mono(const char* src, const char* dst, size_t depth, size_t sampl
     for(size_t i = 0, sum = 0; i < samples; i++)
     {
         if(depth == 8)
-        {   sum = *((unsigned char*)src + (i<<1)) + (int)*((unsigned char*)src + (i<<1) + 1);
-            *((unsigned char*)dst + i) = (unsigned char)(sum >> 2);
+        {   sum = *((uchar*)src + (i<<1)) + (int)*((uchar*)src + (i<<1) + 1);
+            *((uchar*)dst + i) = (uchar)(sum >> 2);
         }
         else if (depth == 16)
         {   sum = *((short*)src + (i<<1)) + (int)*((short*)src + (i<<1) + 1);

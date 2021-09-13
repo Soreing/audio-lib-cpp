@@ -62,6 +62,7 @@ THREAD audioLoaderThread(void* lparam)
 	// Temporary buffer to store audio data
 	size_t buffer_bytes = aout->mixer_size * aout->supported_fmt.blockAlign;
 	char*  temp_buffer  = new char[buffer_bytes];
+	int    default_data = aout->supported_fmt.bitsPerSample == 8 ? 0x80 : 0;
 
 	// Timer variables for putting the thread to sleep
 	steady_clock::time_point start, now;
@@ -80,7 +81,7 @@ THREAD audioLoaderThread(void* lparam)
 		load_accumulator -= load_amount * BUFFER_FRACTION;
 
 		// Get and load the audio data to the Audio Buffer
-		memset(temp_buffer, 0, buffer_bytes);
+		memset(temp_buffer, default_data, buffer_bytes);
 		aout->getAudioData(temp_buffer, load_amount);
 		aout->loadAudioBuffer(temp_buffer, load_amount);
 
@@ -157,8 +158,9 @@ int AudioOutput::openDevice(size_t deviceID)
 
 		audio_buffer = new char[buffer_bytes];
 		mixer_buffer = new char[mixer_bytes];
-		memset(audio_buffer, 0, buffer_bytes);
-		memset(mixer_buffer, 0, mixer_bytes);
+		memset(audio_buffer, supported_fmt.bitsPerSample == 8 ? 0x80 : 0, buffer_bytes);
+		memset(mixer_buffer, supported_fmt.bitsPerSample == 8 ? 0x80 : 0, mixer_bytes);
+
 
 		memset(&buffer_headerA, 0, sizeof(WAVEHDR));
 		buffer_headerA.lpData = audio_buffer;
@@ -395,10 +397,10 @@ void AudioOutput::mixAudioData(char* A, char* B, int buffer_size, int sample_siz
 	for(int i = 0; i < buffer_size; i += sample_size)
 	{
 		if(sample_size == 1)
-		{	llA = *(char*)(A+i);
-			llB = *(char*)(B+i);
+		{	llA = ((int)*(uchar*)(A+i)) - 128;
+			llB = ((int)*(uchar*)(B+i)) - 128;
 			accumulator = llA + llB - ((llA*llB) >> 8);
-			*(char*)(A+i) = (char)accumulator;
+			*(uchar*)(A+i) = (uchar)accumulator + 128;
 		}
 		else if(sample_size == 2)
 		{	llA = *(short*)(A+i);
@@ -423,6 +425,7 @@ void AudioOutput::loadAudioBuffer(char* buffer, int blocks)
 	int align = supported_fmt.blockAlign;
 	int first, second;
 	
+
 	if(buffer_index + blocks <= buffer_size)
 	{	memcpy(audio_buffer + (buffer_index*align), buffer, blocks*align);
 		buffer_index += blocks;

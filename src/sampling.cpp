@@ -53,8 +53,8 @@ void RateConverter::init(size_t L, size_t M, size_t taps, size_t channels, size_
 		decim_delay_lines[i] = new char[(bit_depth << 3) * taps];
 
 		// Set the default values according to unsigned (8-bit) or signed (16-bit+) zeros
-		memset(inter_delay_lines[i], bit_depth == 8 ? 0x0F : 0, (bit_depth << 3) * taps / L);
-		memset(decim_delay_lines[i], bit_depth == 8 ? 0x0F : 0, (bit_depth << 3) * taps);
+		memset(inter_delay_lines[i], bit_depth == 8 ? 0x80 : 0, (bit_depth << 3) * taps / L);
+		memset(decim_delay_lines[i], bit_depth == 8 ? 0x80 : 0, (bit_depth << 3) * taps);
 	}
 
 	// Add gain to the interpolation coefficients

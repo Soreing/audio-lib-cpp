@@ -242,7 +242,7 @@ void AudioSource::take(char* buff, size_t blocks)
 		if (curr == NULL || curr->processed == NULL)
 		{
 			copy_amount = blocks * audio_fmt.blockAlign;
-			memset(copy_to, 0, copy_amount);
+			memset(copy_to, audio_fmt.bitsPerSample == 8 ? 0x80 : 0, copy_amount);
 			blocks = 0;
 		}
 		// Case where this is the last data block needed
@@ -280,8 +280,8 @@ void AudioSource::take(char* buff, size_t blocks)
 }
 
 
-// Clears the data from the Audio Source
-// Deallocates all resources and resets pointers
+// Clears all the data from the Audio Source
+// Stops all the processing threads and clears all resources, then resets pointers
 void AudioSource::clear()
 {
 	handler_active = false;
@@ -295,8 +295,15 @@ void AudioSource::clear()
 	while (tmp != NULL)
 	{
 		nxt = tmp->next;
-		delete[] tmp->origin;
-		delete[] tmp->processed;
+
+		if(tmp->origin == NULL)
+		{	delete[] tmp->origin;
+		}
+
+		if(tmp->processed == NULL)
+		{	delete[] tmp->processed;
+		}
+
 		delete tmp;
 		tmp = nxt;
 	}
@@ -307,8 +314,10 @@ void AudioSource::clear()
 	offset = 0;
 }
 
-// Resets the format and hte filter of the audio source and 
-// clears all processed data that was converted from the original samples
+// Resets the format of the audio source
+// Stops all the processing threads and clears all processed data (converted)
+// Sets the start of the primary data processor to the current node and
+// restarts the conversion from the beginning (with the new target format)
 void AudioSource::reset_format(const WaveFmt &fmt)
 {
 	handler_active = false;
@@ -323,12 +332,14 @@ void AudioSource::reset_format(const WaveFmt &fmt)
 	DataNode* nxt = NULL;
 
 	while (tmp != NULL)
-	{
-		nxt = tmp->next;
-		delete[] tmp->processed;
-		tmp->processed = NULL;
-		tmp->proc_len  = 0;
-		tmp = nxt;
+	{	
+		if(tmp->processed != NULL)
+		{	delete[] tmp->processed;
+			tmp->processed = NULL;
+			tmp->proc_len  = 0;
+		}
+
+		tmp = tmp->next;
 	}
 
 	proc   = curr;
@@ -351,7 +362,6 @@ void AudioSource::process_node(FormatConverter *cnv, DataNode *node)
 	}
 	else
 	{	node->proc_len = cnv->convert( node->origin, buffer, node->orig_len);
-		node->proc_len /= audio_fmt.blockAlign;
 	}
 
 	node->processed = buffer;
