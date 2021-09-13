@@ -47,23 +47,32 @@ void RateConverter::init(size_t L, size_t M, size_t taps, size_t channels, size_
 	memset(decim_delay_idxs, 0, sizeof(size_t) * channels);
 	memset(decim_fractions,  0, sizeof(size_t) * channels);
 
+	// Create and initialize the delay lines for each channel
 	for (size_t i = 0; i < channels; i++)
 	{	inter_delay_lines[i] = new char[(bit_depth << 3) * taps / L];
 		decim_delay_lines[i] = new char[(bit_depth << 3) * taps];
 
-		memset(inter_delay_lines[i], bit_depth == 8 ? 0x80 : 0, (bit_depth << 3) * taps / L);
-		memset(decim_delay_lines[i], bit_depth == 8 ? 0x80 : 0, (bit_depth << 3) * taps);
+		// Set the default values according to unsigned (8-bit) or signed (16-bit+) zeros
+		memset(inter_delay_lines[i], bit_depth == 8 ? 0x0F : 0, (bit_depth << 3) * taps / L);
+		memset(decim_delay_lines[i], bit_depth == 8 ? 0x0F : 0, (bit_depth << 3) * taps);
 	}
 
+	// Add gain to the interpolation coefficients
+	for(int i = 0; i < taps / L; i++)
+	{	inter_filter.coefs[i] *= L;
+	}
+
+	// Calculate the scaling factor (to divide by) after decimation
 	decim_scale = 0;
 	for(size_t i = 0; i < taps ; i++)
 	{	decim_scale += decim_filter.coefs[i];
 	}
 
+	// Calculate the scaling factor (to divide by) after interpolation
+	// Each L samples use different coefficients, so they each have a scale factor
 	inter_scales = new llong[L];
 	int coef_orig = ((inter_filter.size >> 1) + 1) % L;
 	int coef_idx;
-
 	for(size_t i = 0; i < L; i++)
 	{
 		inter_scales[coef_orig] = 0;
@@ -74,7 +83,6 @@ void RateConverter::init(size_t L, size_t M, size_t taps, size_t channels, size_
 			coef_idx += L;
 		}
 
-		inter_scales[coef_orig] *= L;
 		MODINC(coef_orig, L);
 	}
 }
@@ -197,7 +205,7 @@ int RateConverter::interpolation(const uchar* src, uchar* dst, size_t channel, s
 			// The coefficients are multiplied by the factor to add gain
 			for (size_t k = 0; k < delay_size; k++)
 			{
-				tmpVal += inter_filter.coefs[h] * L * inter_delay_line[n];
+				tmpVal += inter_filter.coefs[h] * inter_delay_line[n];
 				MODINC(n, delay_size);
 				h += L;
 			}
@@ -267,7 +275,7 @@ int RateConverter::non_integral(const uchar* src, uchar* dst, size_t channel, si
 			// The coefficients are multiplied by the factor to add gain
 			for (size_t k = 0; k < inter_size; k++)
 			{
-				tmpVal += inter_filter.coefs[h] * L * inter_delay_line[n];
+				tmpVal += inter_filter.coefs[h] * inter_delay_line[n];
 				MODINC(n, inter_size);
 				h += L;
 			}
@@ -402,7 +410,7 @@ int RateConverter::interpolation(const short* src, short* dst, size_t channel, s
 			// The coefficients are multiplied by the factor to add gain
 			for (size_t k = 0; k < delay_size; k++)
 			{
-				tmpVal += inter_filter.coefs[h] * L * inter_delay_line[n];
+				tmpVal += inter_filter.coefs[h] * inter_delay_line[n];
 				MODINC(n, delay_size);
 				h += L;
 			}
@@ -474,7 +482,7 @@ int RateConverter::non_integral(const short* src, short* dst, size_t channel, si
 			// The coefficients are multiplied by the factor to add gain
 			for (size_t k = 0; k < inter_size; k++)
 			{
-				tmpVal += inter_filter.coefs[h] * L * inter_delay_line[n];
+				tmpVal += inter_filter.coefs[h] * inter_delay_line[n];
 				MODINC(n, inter_size);
 				h += L;
 			}
