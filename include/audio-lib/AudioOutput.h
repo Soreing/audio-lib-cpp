@@ -14,6 +14,11 @@
 
 enum AO_State {Playing, Paused, Stopped};
 
+struct OutputDevice
+{	int ID;
+	char name[50];
+};
+
 class AudioOutput
 {
 public:
@@ -53,6 +58,9 @@ public:
 
 public:
 	AudioOutput();
+
+	// Returns a list of audio output devices
+	static void getDevices(OutputDevice* list, int &size);
 
 	// Finds the closest supported wave format of the speaker device 
 	void configFormat(size_t deviceID);

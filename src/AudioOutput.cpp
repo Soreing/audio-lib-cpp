@@ -126,6 +126,32 @@ void AudioOutput::configFormat(size_t deviceID)
 	}
 }
 
+// Returns a list of audio output devices
+void AudioOutput::getDevices(OutputDevice* list, int &size)
+{
+	WAVEOUTCAPS caps;
+	int count = waveOutGetNumDevs();
+
+	if(list == NULL)
+	{	size = count;
+	}
+	else if(size < count)
+	{	size = 0;
+	}
+	else
+	{	size = count;
+
+		for(int i=0; i < count; i++)
+		{
+			waveOutGetDevCaps(i, &caps, sizeof(WAVEOUTCAPS));
+			list[i].ID = i;
+			strcpy(list[i].name, caps.szPname);
+		}
+	}
+
+
+}
+
 // Opens an audio output device with the closest supported format
 // Sets up the audio buffers and starts the update thread
 // If there was already a device opened, it will close it first
